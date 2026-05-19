@@ -7,8 +7,11 @@ import android.webkit.WebViewClient;
 import android.webkit.WebSettings;
 import android.webkit.WebChromeClient;
 import android.view.View;
+import android.view.Window;
+import android.view.WindowManager;
 import android.widget.ImageView;
 import android.widget.FrameLayout;
+import android.graphics.Color;
 
 public class MainActivity extends Activity {
     private WebView webView;
@@ -17,6 +20,15 @@ public class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
+        // Make status bar transparent but visible
+        Window window = getWindow();
+        window.addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS);
+        window.clearFlags(WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS);
+        window.setStatusBarColor(Color.TRANSPARENT);
+        window.getDecorView().setSystemUiVisibility(
+            View.SYSTEM_UI_FLAG_LAYOUT_STABLE |
+            View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN);
 
         FrameLayout layout = new FrameLayout(this);
 
@@ -40,7 +52,7 @@ public class MainActivity extends Activity {
 
         splashView = new ImageView(this);
         splashView.setImageResource(R.drawable.splash_logo);
-        splashView.setScaleType(ImageView.ScaleType.FIT_XY);
+        splashView.setScaleType(ImageView.ScaleType.CENTER_CROP);
         splashView.setBackgroundColor(0xFF0F0F0F);
 
         layout.addView(webView, new FrameLayout.LayoutParams(
