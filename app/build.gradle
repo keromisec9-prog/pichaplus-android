@@ -3,6 +3,7 @@ plugins {
 }
 
 android {
+    namespace 'com.pichaplus.app'
     compileSdk 34
     defaultConfig {
         applicationId "com.pichaplus.app"
