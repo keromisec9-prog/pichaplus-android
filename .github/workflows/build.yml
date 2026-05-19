@@ -12,6 +12,13 @@ jobs:
         with:
           java-version: '17'
           distribution: 'temurin'
+      - name: Setup Gradle
+        run: |
+          mkdir -p gradle/wrapper
+          wget -q https://services.gradle.org/distributions/gradle-8.0-bin.zip -O /tmp/gradle.zip
+          unzip -q /tmp/gradle.zip -d /tmp/gradle
+          export PATH=$PATH:/tmp/gradle/gradle-8.0/bin
+          echo "/tmp/gradle/gradle-8.0/bin" >> $GITHUB_PATH
       - name: Build APK
         run: gradle assembleRelease
       - name: Upload APK
