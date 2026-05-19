@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">PichaPlus</string>
+    <style name="Theme.PichaPlus" parent="android:Theme.Black.NoTitleBar.Fullscreen"/>
+</resources>

@@ -1,0 +1,36 @@
+{
+    "logs": [
+        {
+            "outputFile": "com.pichaplus.app-mergeReleaseResources-5:/values-sk/values-sk.xml",
+            "map": [
+                {
+                    "source": "/data/data/com.termux/files/home/.gradle/caches/9.5.1/transforms/035929c7b77145eb29763c04de2c096c/transformed/core-1.1.0/res/values-sk/values-sk.xml",
+                    "from": {
+                        "startLines": "2",
+                        "startColumns": "4",
+                        "startOffsets": "55",
+                        "endColumns": "100",
+                        "endOffsets": "151"
+                    },
+                    "to": {
+                        "startLines": "6",
+                        "startColumns": "4",
+                        "startOffsets": "482",
+                        "endColumns": "100",
+                        "endOffsets": "578"
+                    }
+                },
+                {
+                    "source": "/data/data/com.termux/files/home/.gradle/caches/9.5.1/transforms/cb6fbf3730ffbbbc3cb3f07cb05489f5/transformed/browser-1.4.0/res/values-sk/values-sk.xml",
+                    "from": {
+                        "startLines": "2,3,4,5",
+                        "startColumns": "4,4,4,4",
+                        "startOffsets": "55,162,265,380",
+                        "endColumns": "106,102,114,101",
+                        "endOffsets": "157,260,375,477"
+                    }
+                }
+            ]
+        }
+    ]
+}

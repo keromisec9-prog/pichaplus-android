@@ -1,0 +1,22 @@
+plugins {
+    id 'com.android.application'
+}
+android {
+    compileSdk 34
+    namespace "com.pichaplus.app"
+    defaultConfig {
+        applicationId "com.pichaplus.app"
+        minSdk 24
+        targetSdk 34
+        versionCode 1
+        versionName "1.0.0"
+    }
+    buildTypes {
+        release {
+            minifyEnabled false
+        }
+    }
+}
+dependencies {
+    implementation 'com.google.androidbrowserhelper:androidbrowserhelper:2.5.0'
+}

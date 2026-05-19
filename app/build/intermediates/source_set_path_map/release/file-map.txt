@@ -1,0 +1,10 @@
+com.pichaplus.app-core-1.1.0-0 /data/data/com.termux/files/home/.gradle/caches/9.5.1/transforms/035929c7b77145eb29763c04de2c096c/transformed/core-1.1.0/res
+com.pichaplus.app-androidbrowserhelper-2.5.0-1 /data/data/com.termux/files/home/.gradle/caches/9.5.1/transforms/75019a2c5f10e25340d4ea1a45f6d3e5/transformed/androidbrowserhelper-2.5.0/res
+com.pichaplus.app-browser-1.4.0-2 /data/data/com.termux/files/home/.gradle/caches/9.5.1/transforms/cb6fbf3730ffbbbc3cb3f07cb05489f5/transformed/browser-1.4.0/res
+com.pichaplus.app-pngs-3 /data/data/com.termux/files/home/PichaPlus/app/build/generated/res/pngs/release
+com.pichaplus.app-resValues-4 /data/data/com.termux/files/home/PichaPlus/app/build/generated/res/resValues/release
+com.pichaplus.app-packageReleaseResources-5 /data/data/com.termux/files/home/PichaPlus/app/build/intermediates/incremental/release/packageReleaseResources/merged.dir
+com.pichaplus.app-packageReleaseResources-6 /data/data/com.termux/files/home/PichaPlus/app/build/intermediates/incremental/release/packageReleaseResources/stripped.dir
+com.pichaplus.app-merged_res-7 /data/data/com.termux/files/home/PichaPlus/app/build/intermediates/merged_res/release
+com.pichaplus.app-main-8 /data/data/com.termux/files/home/PichaPlus/app/src/main/res
+com.pichaplus.app-release-9 /data/data/com.termux/files/home/PichaPlus/app/src/release/res
