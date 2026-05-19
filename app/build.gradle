@@ -6,7 +6,7 @@ android {
     namespace 'com.pichaplus.app'
     compileSdk 34
     defaultConfig {
-        applicationId "com.pichaplus.app"
+        applicationId "ke.pichaplus.app"
         minSdk 24
         targetSdk 34
         versionCode 6
