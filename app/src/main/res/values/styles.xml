@@ -1,9 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Theme.PichaPlus" parent="android:Theme.Black.NoTitleBar.Fullscreen">
+    <style name="Theme.PichaPlus" parent="android:Theme.Black.NoTitleBar.Fullscreen"/>
+    <style name="Theme.PichaPlus.Splash" parent="android:Theme.Black.NoTitleBar.Fullscreen">
         <item name="android:windowBackground">@drawable/splash_background</item>
-        <item name="android:windowNoTitle">true</item>
-        <item name="android:windowFullscreen">true</item>
-        <item name="android:windowIsTranslucent">false</item>
     </style>
 </resources>
