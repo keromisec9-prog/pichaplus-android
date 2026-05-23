@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html style="background:#0f0f0f;margin:0;padding:0;">
+<head>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    background:#0f0f0f;
+    color:#fff;
+    font-family:'Inter',sans-serif;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    height:100vh;
+    text-align:center;
+    padding:2rem;
+  }
+  img { width:200px; height:auto; margin-bottom:2rem; border-radius:16px; }
+  h1 { font-size:1.5rem; margin-bottom:0.5rem; color:#e5b93c; }
+  p { color:#888; font-size:0.9rem; margin-bottom:2rem; }
+  button {
+    background:#e5b93c;
+    color:#000;
+    border:none;
+    padding:0.8rem 2rem;
+    border-radius:8px;
+    font-size:1rem;
+    font-weight:600;
+    cursor:pointer;
+  }
+</style>
+</head>
+<body>
+  <img src="file:///android_asset/offline.png" alt="Offline"/>
+  <h1>You're Offline</h1>
+  <p>Check your internet connection and try again.</p>
+  <button onclick="window.location.reload()">Try Again</button>
+</body>
+</html>
