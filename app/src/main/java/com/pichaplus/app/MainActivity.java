@@ -18,10 +18,7 @@ public class MainActivity extends Activity {
         super.onCreate(savedInstanceState);
 
         requestWindowFeature(Window.FEATURE_NO_TITLE);
-        getWindow().setFlags(
-            WindowManager.LayoutParams.FLAG_FULLSCREEN,
-            WindowManager.LayoutParams.FLAG_FULLSCREEN
-        );
+        getWindow().setStatusBarColor(Color.parseColor("#0f0f0f"));
         getWindow().setStatusBarColor(Color.parseColor("#0f0f0f"));
 
         setContentView(R.layout.activity_main);
