@@ -33,7 +33,7 @@ public class MainActivity extends Activity {
         settings.setAllowFileAccess(true);
         settings.setLoadWithOverviewMode(true);
         settings.setUseWideViewPort(true);
-        settings.setAppCacheEnabled(true);
+        
         settings.setCacheMode(WebSettings.LOAD_DEFAULT);
         settings.setUserAgentString(
             "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 " +
