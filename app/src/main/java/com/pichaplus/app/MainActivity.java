@@ -11,12 +11,20 @@ import android.webkit.WebResourceError;
 import android.view.Window;
 import android.view.WindowManager;
 import android.graphics.Color;
-import android.net.http.SslError;
-import android.webkit.SslErrorHandler;
+import android.net.ConnectivityManager;
+import android.net.NetworkInfo;
+import android.content.Context;
 
 public class MainActivity extends Activity {
     private WebView webView;
     private static final String HOME_URL = "https://keromisec9-prog.github.io/picha-plus/";
+    private static final String OFFLINE_URL = "file:///android_asset/offline.html";
+
+    private boolean isConnected() {
+        ConnectivityManager cm = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
+        NetworkInfo info = cm.getActiveNetworkInfo();
+        return info != null && info.isConnected();
+    }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -33,7 +41,6 @@ public class MainActivity extends Activity {
         settings.setAllowFileAccess(true);
         settings.setLoadWithOverviewMode(true);
         settings.setUseWideViewPort(true);
-        
         settings.setCacheMode(WebSettings.LOAD_DEFAULT);
         settings.setUserAgentString(
             "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 " +
@@ -51,26 +58,17 @@ public class MainActivity extends Activity {
             public void onReceivedError(WebView view, WebResourceRequest request,
                                         WebResourceError error) {
                 if (request.isForMainFrame()) {
-                    // Try cache first
-                    webView.getSettings().setCacheMode(WebSettings.LOAD_CACHE_ONLY);
-                    try {
-                        webView.loadUrl(HOME_URL);
-                    } catch (Exception e) {
-                        // Show custom offline page
-                        webView.loadUrl("file:///android_asset/offline.html");
-                    }
+                    view.loadUrl(OFFLINE_URL);
                 }
             }
-
-            @Override
-            public void onReceivedSslError(WebView view, SslErrorHandler handler,
-                                           SslError error) {
-                handler.proceed();
-            }
         });
-
         webView.setWebChromeClient(new WebChromeClient());
-        webView.loadUrl(HOME_URL);
+
+        if (isConnected()) {
+            webView.loadUrl(HOME_URL);
+        } else {
+            webView.loadUrl(OFFLINE_URL);
+        }
     }
 
     @Override
@@ -80,11 +78,5 @@ public class MainActivity extends Activity {
         } else {
             super.onBackPressed();
         }
-    }
-
-    @Override
-    protected void onResume() {
-        super.onResume();
-        webView.getSettings().setCacheMode(WebSettings.LOAD_DEFAULT);
     }
 }
