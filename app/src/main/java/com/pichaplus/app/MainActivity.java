@@ -30,7 +30,7 @@ public class MainActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         requestWindowFeature(Window.FEATURE_NO_TITLE);
-        getWindow().setStatusBarColor(Color.parseColor("#0f0f0f"));
+        getWindow().setStatusBarColor(Color.BLACK);
         setContentView(R.layout.activity_main);
         webView = findViewById(R.id.webview);
 
