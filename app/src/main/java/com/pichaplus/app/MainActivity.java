@@ -50,7 +50,7 @@ public class MainActivity extends Activity {
         webView.setBackgroundColor(Color.parseColor("#0f0f0f"));
 
         spinner = new ProgressBar(this, null, android.R.attr.progressBarStyleLarge);
-        FrameLayout.LayoutParams spinnerParams = new FrameLayout.LayoutParams(120, 120);
+        FrameLayout.LayoutParams spinnerParams = new FrameLayout.LayoutParams(60, 60);
         spinnerParams.gravity = android.view.Gravity.CENTER;
         spinner.setLayoutParams(spinnerParams);
         spinner.getIndeterminateDrawable().setColorFilter(
