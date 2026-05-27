@@ -3,13 +3,13 @@ package com.pichaplus.app;
 import android.app.Activity;
 import android.app.DownloadManager;
 import android.content.Context;
-import android.content.Intent;
 import android.graphics.Color;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Environment;
+import android.view.View;
 import android.view.Window;
 import android.webkit.CookieManager;
 import android.webkit.DownloadListener;
@@ -19,9 +19,12 @@ import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import android.widget.FrameLayout;
+import android.widget.ProgressBar;
 
 public class MainActivity extends Activity {
     private WebView webView;
+    private ProgressBar spinner;
     private static final String HOME_URL = "https://keromisec9-prog.github.io/picha-plus/";
     private static final String OFFLINE_URL = "file:///android_asset/offline.html";
 
@@ -36,8 +39,29 @@ public class MainActivity extends Activity {
         super.onCreate(savedInstanceState);
         requestWindowFeature(Window.FEATURE_NO_TITLE);
         getWindow().setStatusBarColor(Color.BLACK);
-        setContentView(R.layout.activity_main);
-        webView = findViewById(R.id.webview);
+
+        // Build layout programmatically
+        FrameLayout frame = new FrameLayout(this);
+
+        webView = new WebView(this);
+        webView.setLayoutParams(new FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.MATCH_PARENT,
+            FrameLayout.LayoutParams.MATCH_PARENT));
+        webView.setBackgroundColor(Color.parseColor("#0f0f0f"));
+
+        spinner = new ProgressBar(this, null, android.R.attr.progressBarStyleLarge);
+        FrameLayout.LayoutParams spinnerParams = new FrameLayout.LayoutParams(120, 120);
+        spinnerParams.gravity = android.view.Gravity.CENTER;
+        spinner.setLayoutParams(spinnerParams);
+        spinner.getIndeterminateDrawable().setColorFilter(
+            Color.parseColor("#e5b93c"),
+            android.graphics.PorterDuff.Mode.SRC_IN
+        );
+        spinner.setVisibility(View.GONE);
+
+        frame.addView(webView);
+        frame.addView(spinner);
+        setContentView(frame);
 
         WebSettings settings = webView.getSettings();
         settings.setJavaScriptEnabled(true);
@@ -53,7 +77,6 @@ public class MainActivity extends Activity {
             "(KHTML, like Gecko) Chrome/123.0.0.0 Mobile Safari/537.36"
         );
 
-        // Handle file downloads to internal storage
         webView.setDownloadListener(new DownloadListener() {
             @Override
             public void onDownloadStart(String url, String userAgent,
@@ -63,33 +86,41 @@ public class MainActivity extends Activity {
                 request.setMimeType(mimeType);
                 request.addRequestHeader("User-Agent", userAgent);
                 request.addRequestHeader("Cookie", CookieManager.getInstance().getCookie(url));
-                request.setDescription("Downloading file...");
+                request.setDescription("Downloading...");
                 request.setNotificationVisibility(
                     DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED
                 );
-                // Save to Downloads folder (accessible in Files app)
                 request.setDestinationInExternalPublicDir(
                     Environment.DIRECTORY_DOWNLOADS,
-                    url.substring(url.lastIndexOf("/") + 1)
+                    url.substring(url.lastIndexOf("/") + 1).split("\\?")[0] + ".mp4"
                 );
                 DownloadManager dm = (DownloadManager) getSystemService(DOWNLOAD_SERVICE);
                 dm.enqueue(request);
-                android.widget.Toast.makeText(getApplicationContext(),
-                    "Downloading to Downloads folder...",
-                    android.widget.Toast.LENGTH_SHORT).show();
             }
         });
 
         webView.setWebViewClient(new WebViewClient() {
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, String url) {
+                // Show spinner when going to Google auth
+                if (url.contains("accounts.google.com") || 
+                    url.contains("picha-plus-worker") ||
+                    url.contains("workers.dev/auth")) {
+                    spinner.setVisibility(View.VISIBLE);
+                }
                 view.loadUrl(url);
                 return true;
             }
 
             @Override
+            public void onPageFinished(WebView view, String url) {
+                spinner.setVisibility(View.GONE);
+            }
+
+            @Override
             public void onReceivedError(WebView view, WebResourceRequest request,
                                         WebResourceError error) {
+                spinner.setVisibility(View.GONE);
                 if (request.isForMainFrame()) {
                     view.loadUrl(OFFLINE_URL);
                 }
