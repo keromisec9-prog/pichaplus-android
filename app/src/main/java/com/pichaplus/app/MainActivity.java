@@ -20,11 +20,9 @@ import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.FrameLayout;
-import android.widget.ProgressBar;
 
 public class MainActivity extends Activity {
     private WebView webView;
-    private ProgressBar spinner;
     private static final String HOME_URL = "https://keromisec9-prog.github.io/picha-plus/";
     private static final String OFFLINE_URL = "file:///android_asset/offline.html";
 
@@ -40,7 +38,6 @@ public class MainActivity extends Activity {
         requestWindowFeature(Window.FEATURE_NO_TITLE);
         getWindow().setStatusBarColor(Color.BLACK);
 
-        // Build layout programmatically
         FrameLayout frame = new FrameLayout(this);
 
         webView = new WebView(this);
@@ -49,18 +46,7 @@ public class MainActivity extends Activity {
             FrameLayout.LayoutParams.MATCH_PARENT));
         webView.setBackgroundColor(Color.parseColor("#0f0f0f"));
 
-        spinner = new ProgressBar(this, null, android.R.attr.progressBarStyleLarge);
-        FrameLayout.LayoutParams spinnerParams = new FrameLayout.LayoutParams(60, 60);
-        spinnerParams.gravity = android.view.Gravity.CENTER;
-        spinner.setLayoutParams(spinnerParams);
-        spinner.getIndeterminateDrawable().setColorFilter(
-            Color.parseColor("#e5b93c"),
-            android.graphics.PorterDuff.Mode.SRC_IN
-        );
-        spinner.setVisibility(View.GONE);
-
         frame.addView(webView);
-        frame.addView(spinner);
         setContentView(frame);
 
         WebSettings settings = webView.getSettings();
@@ -102,25 +88,13 @@ public class MainActivity extends Activity {
         webView.setWebViewClient(new WebViewClient() {
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, String url) {
-                // Show spinner when going to Google auth
-                if (url.contains("accounts.google.com") || 
-                    url.contains("picha-plus-worker") ||
-                    url.contains("workers.dev/auth")) {
-                    spinner.setVisibility(View.VISIBLE);
-                }
                 view.loadUrl(url);
                 return true;
             }
 
             @Override
-            public void onPageFinished(WebView view, String url) {
-                spinner.setVisibility(View.GONE);
-            }
-
-            @Override
             public void onReceivedError(WebView view, WebResourceRequest request,
                                         WebResourceError error) {
-                spinner.setVisibility(View.GONE);
                 if (request.isForMainFrame()) {
                     view.loadUrl(OFFLINE_URL);
                 }
