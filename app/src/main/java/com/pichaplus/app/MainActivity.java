@@ -92,10 +92,6 @@ public class MainActivity extends Activity {
                 request.setMimeType("video/mp4");
                 request.addRequestHeader("User-Agent", userAgent);
                 request.addRequestHeader("Cookie", CookieManager.getInstance().getCookie(url));
-                // Extract session token from URL and add as header
-                android.net.Uri uri = android.net.Uri.parse(url);
-                String token = uri.getQueryParameter("token");
-                if (token != null) request.addRequestHeader("X-Session-Token", token);
                 request.setTitle(filename.replace(".mp4", ""));
                 request.setDescription("Downloading via Picha+...");
                 request.setNotificationVisibility(
