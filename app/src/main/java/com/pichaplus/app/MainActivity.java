@@ -32,27 +32,6 @@ public class MainActivity extends Activity {
         return info != null && info.isConnected();
     }
 
-    private String extractFilename(String contentDisposition, String url) {
-        // Try Content-Disposition first: filename="MovieTitle.mp4"
-        if (contentDisposition != null && contentDisposition.contains("filename=")) {
-            String[] parts = contentDisposition.split("filename=");
-            if (parts.length > 1) {
-                String name = parts[1].replaceAll("\"", "").trim();
-                if (name.contains(";")) name = name.substring(0, name.indexOf(";")).trim();
-                if (!name.isEmpty()) return name;
-            }
-        }
-        // Fallback: extract from URL
-        try {
-            String path = Uri.parse(url).getLastPathSegment();
-            if (path != null && !path.isEmpty()) {
-                if (path.contains("?")) path = path.substring(0, path.indexOf("?"));
-                if (!path.isEmpty()) return path + ".mp4";
-            }
-        } catch (Exception ignored) {}
-        return "video_" + System.currentTimeMillis() + ".mp4";
-    }
-
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -60,11 +39,13 @@ public class MainActivity extends Activity {
         getWindow().setStatusBarColor(Color.BLACK);
 
         FrameLayout frame = new FrameLayout(this);
+
         webView = new WebView(this);
         webView.setLayoutParams(new FrameLayout.LayoutParams(
             FrameLayout.LayoutParams.MATCH_PARENT,
             FrameLayout.LayoutParams.MATCH_PARENT));
         webView.setBackgroundColor(Color.parseColor("#0f0f0f"));
+
         frame.addView(webView);
         setContentView(frame);
 
@@ -87,20 +68,18 @@ public class MainActivity extends Activity {
             public void onDownloadStart(String url, String userAgent,
                                         String contentDisposition, String mimeType,
                                         long contentLength) {
-                String filename = extractFilename(contentDisposition, url);
                 DownloadManager.Request request = new DownloadManager.Request(Uri.parse(url));
-                request.setMimeType("video/mp4");
+                request.setMimeType(mimeType);
                 request.addRequestHeader("User-Agent", userAgent);
                 request.addRequestHeader("Cookie", CookieManager.getInstance().getCookie(url));
-                request.setTitle(filename.replace(".mp4", ""));
-                request.setDescription("Downloading via Picha+...");
+                request.setDescription("Downloading...");
                 request.setNotificationVisibility(
                     DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED
                 );
                 request.setDestinationInExternalPublicDir(
-                    Environment.DIRECTORY_DOWNLOADS, filename
+                    Environment.DIRECTORY_DOWNLOADS,
+                    url.substring(url.lastIndexOf("/") + 1).split("\\?")[0] + ".mp4"
                 );
-                request.allowScanningByMediaScanner();
                 DownloadManager dm = (DownloadManager) getSystemService(DOWNLOAD_SERVICE);
                 dm.enqueue(request);
             }
