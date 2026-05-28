@@ -1,0 +1,68 @@
+{
+  "project_info": {
+    "project_number": "37619691033",
+    "project_id": "picha-entertainment",
+    "storage_bucket": "picha-entertainment.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:37619691033:android:f0c3d6d9e81fdc7d44c488",
+        "android_client_info": {
+          "package_name": "com.picha.entertainment"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "37619691033-cjjhb99r0d9tojuqtea8knpo8f6ninid.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAhL7Xc042PMmAJsoefi52wsY_h7Df75bk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "37619691033-cjjhb99r0d9tojuqtea8knpo8f6ninid.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:37619691033:android:1b01ee9b123359ba44c488",
+        "android_client_info": {
+          "package_name": "com.pichaplus.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "37619691033-cjjhb99r0d9tojuqtea8knpo8f6ninid.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAhL7Xc042PMmAJsoefi52wsY_h7Df75bk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "37619691033-cjjhb99r0d9tojuqtea8knpo8f6ninid.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

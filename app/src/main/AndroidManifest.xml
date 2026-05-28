@@ -23,5 +23,12 @@
             android:exported="false"
             android:screenOrientation="unspecified"
             android:configChanges="orientation|screenSize"/>
+        <service
+            android:name=".PichaFirebaseService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT"/>
+            </intent-filter>
+        </service>
     </application>
 </manifest>
