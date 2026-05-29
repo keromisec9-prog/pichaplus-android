@@ -21,6 +21,8 @@ import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.FrameLayout;
+import android.Manifest;
+import android.content.pm.PackageManager;
 
 public class MainActivity extends Activity {
     private WebView webView;
@@ -71,6 +73,13 @@ public class MainActivity extends Activity {
             "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 " +
             "(KHTML, like Gecko) Chrome/123.0.0.0 Mobile Safari/537.36"
         );
+
+        // Request notification permission on Android 13+
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+            if (checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, 1001);
+            }
+        }
 
         // Add JS bridge
         webView.addJavascriptInterface(new PichaJSBridge(), "PichaApp");
