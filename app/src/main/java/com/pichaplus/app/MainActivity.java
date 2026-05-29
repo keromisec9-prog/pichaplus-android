@@ -13,6 +13,7 @@ import android.view.View;
 import android.view.Window;
 import android.webkit.CookieManager;
 import android.webkit.DownloadListener;
+import android.webkit.JavascriptInterface;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceError;
 import android.webkit.WebResourceRequest;
@@ -32,6 +33,16 @@ public class MainActivity extends Activity {
         return info != null && info.isConnected();
     }
 
+    // JavaScript interface to receive session token from website
+    public class PichaJSBridge {
+        @JavascriptInterface
+        public void onSessionToken(String token) {
+            if (token != null && !token.isEmpty() && !token.equals("null")) {
+                PichaTokenManager.saveSession(MainActivity.this, token);
+            }
+        }
+    }
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -39,13 +50,11 @@ public class MainActivity extends Activity {
         getWindow().setStatusBarColor(Color.BLACK);
 
         FrameLayout frame = new FrameLayout(this);
-
         webView = new WebView(this);
         webView.setLayoutParams(new FrameLayout.LayoutParams(
             FrameLayout.LayoutParams.MATCH_PARENT,
             FrameLayout.LayoutParams.MATCH_PARENT));
         webView.setBackgroundColor(Color.parseColor("#0f0f0f"));
-
         frame.addView(webView);
         setContentView(frame);
 
@@ -63,22 +72,25 @@ public class MainActivity extends Activity {
             "(KHTML, like Gecko) Chrome/123.0.0.0 Mobile Safari/537.36"
         );
 
+        // Add JS bridge
+        webView.addJavascriptInterface(new PichaJSBridge(), "PichaApp");
+
         webView.setDownloadListener(new DownloadListener() {
             @Override
             public void onDownloadStart(String url, String userAgent,
                                         String contentDisposition, String mimeType,
                                         long contentLength) {
                 DownloadManager.Request request = new DownloadManager.Request(Uri.parse(url));
-                request.setMimeType(mimeType);
+                request.setMimeType("video/mp4");
                 request.addRequestHeader("User-Agent", userAgent);
                 request.addRequestHeader("Cookie", CookieManager.getInstance().getCookie(url));
-                request.setDescription("Downloading...");
+                request.setDescription("Downloading via Picha+...");
                 request.setNotificationVisibility(
                     DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED
                 );
                 request.setDestinationInExternalPublicDir(
                     Environment.DIRECTORY_DOWNLOADS,
-                    url.substring(url.lastIndexOf("/") + 1).split("\\?")[0] + ".mp4"
+                    "picha_" + System.currentTimeMillis() + ".mp4"
                 );
                 DownloadManager dm = (DownloadManager) getSystemService(DOWNLOAD_SERVICE);
                 dm.enqueue(request);
@@ -90,6 +102,20 @@ public class MainActivity extends Activity {
             public boolean shouldOverrideUrlLoading(WebView view, String url) {
                 view.loadUrl(url);
                 return true;
+            }
+
+            @Override
+            public void onPageFinished(WebView view, String url) {
+                // Read session token from localStorage and pass to app
+                view.evaluateJavascript(
+                    "(function(){ return localStorage.getItem('pichaplus_session'); })()",
+                    value -> {
+                        if (value != null && !value.equals("null")) {
+                            String token = value.replaceAll("\"", "");
+                            PichaTokenManager.saveSession(MainActivity.this, token);
+                        }
+                    }
+                );
             }
 
             @Override
