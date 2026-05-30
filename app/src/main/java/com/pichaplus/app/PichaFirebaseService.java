@@ -14,6 +14,7 @@ import com.google.firebase.messaging.RemoteMessage;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.util.Map;
 
 public class PichaFirebaseService extends FirebaseMessagingService {
     private static final String CHANNEL_ID = "picha_notifications";
@@ -27,10 +28,30 @@ public class PichaFirebaseService extends FirebaseMessagingService {
     @Override
     public void onMessageReceived(RemoteMessage message) {
         super.onMessageReceived(message);
-        String title = message.getNotification() != null ? message.getNotification().getTitle() : "Picha+";
-        String body = message.getNotification() != null ? message.getNotification().getBody() : "";
-        String imageUrl = message.getNotification() != null && message.getNotification().getImageUrl() != null
-            ? message.getNotification().getImageUrl().toString() : null;
+
+        String title = "Picha+";
+        String body = "";
+        String imageUrl = null;
+
+        // Try notification payload first
+        if (message.getNotification() != null) {
+            title = message.getNotification().getTitle() != null ? message.getNotification().getTitle() : title;
+            body = message.getNotification().getBody() != null ? message.getNotification().getBody() : body;
+            if (message.getNotification().getImageUrl() != null) {
+                imageUrl = message.getNotification().getImageUrl().toString();
+            }
+        }
+
+        // Override with data payload if present
+        Map<String, String> data = message.getData();
+        if (data != null) {
+            if (data.containsKey("title")) title = data.get("title");
+            if (data.containsKey("body")) body = data.get("body");
+            if (data.containsKey("imageUrl") && !data.get("imageUrl").isEmpty()) {
+                imageUrl = data.get("imageUrl");
+            }
+        }
+
         showNotification(title, body, imageUrl);
     }
 
@@ -39,6 +60,8 @@ public class PichaFirebaseService extends FirebaseMessagingService {
             URL url = new URL(imageUrl);
             HttpURLConnection conn = (HttpURLConnection) url.openConnection();
             conn.setDoInput(true);
+            conn.setConnectTimeout(5000);
+            conn.setReadTimeout(10000);
             conn.connect();
             InputStream input = conn.getInputStream();
             return BitmapFactory.decodeStream(input);
@@ -56,7 +79,7 @@ public class PichaFirebaseService extends FirebaseMessagingService {
         }
         Intent intent = new Intent(this, MainActivity.class);
         PendingIntent pi = PendingIntent.getActivity(this, 0, intent, PendingIntent.FLAG_IMMUTABLE);
-        
+
         NotificationCompat.Builder builder = new NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.mipmap.ic_launcher)
             .setContentTitle(title)
@@ -64,7 +87,7 @@ public class PichaFirebaseService extends FirebaseMessagingService {
             .setAutoCancel(true)
             .setContentIntent(pi);
 
-        if (imageUrl != null) {
+        if (imageUrl != null && !imageUrl.isEmpty()) {
             Bitmap bitmap = getBitmapFromUrl(imageUrl);
             if (bitmap != null) {
                 builder.setLargeIcon(bitmap)
