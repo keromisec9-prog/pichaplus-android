@@ -136,7 +136,7 @@ public class MainActivity extends AppCompatActivity {
                     "(function(){ return localStorage.getItem('pichaplus_session'); })()",
                     value -> {
                         if (value != null && !value.equals("null")) {
-                            String token = value.replaceAll("\\"", "");
+                            String token = value.replace("\"", "");
                             PichaTokenManager.saveSession(MainActivity.this, token);
                         }
                     }
