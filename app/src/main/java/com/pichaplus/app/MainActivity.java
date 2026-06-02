@@ -30,6 +30,7 @@ import com.google.android.gms.cast.framework.CastContext;
 public class MainActivity extends AppCompatActivity {
     private WebView webView;
     private CastContext castContext;
+    private MediaRouteButton castButton;
     private static final String HOME_URL = "https://keromisec9-prog.github.io/picha-plus/";
     private static final String OFFLINE_URL = "file:///android_asset/offline.html";
 
@@ -50,8 +51,7 @@ public class MainActivity extends AppCompatActivity {
         @JavascriptInterface
         public void startCast() {
             runOnUiThread(() -> {
-                MediaRouteButton btn = (MediaRouteButton) webView.getParent().findViewWithTag("castBtn");
-                if (btn != null) btn.performClick();
+                if (castButton != null) castButton.performClick();
             });
         }
     }
@@ -78,7 +78,7 @@ public class MainActivity extends AppCompatActivity {
         frame.addView(webView);
 
         // Cast button — top right, above the WebView
-        MediaRouteButton castButton = new MediaRouteButton(this);
+        castButton = new MediaRouteButton(this);
         CastButtonFactory.setUpMediaRouteButton(this, castButton);
         int size = (int) (40 * getResources().getDisplayMetrics().density);
         int margin = (int) (12 * getResources().getDisplayMetrics().density);
