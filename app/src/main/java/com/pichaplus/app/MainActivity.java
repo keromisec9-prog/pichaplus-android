@@ -48,23 +48,7 @@ public class MainActivity extends AppCompatActivity {
             }
         }
 
-        @JavascriptInterface
-        public void startCast() {
-            runOnUiThread(() -> {
-                try {
-                    androidx.mediarouter.app.MediaRouteChooserDialog dialog =
-                        new androidx.mediarouter.app.MediaRouteChooserDialog(MainActivity.this);
-                    dialog.setRouteSelector(castButton.getRouteSelector());
-                    dialog.show();
-                } catch (Exception e) {
-                    if (castButton != null) {
-                        castButton.setVisibility(android.view.View.VISIBLE);
-                        castButton.performClick();
-                        castButton.setVisibility(android.view.View.GONE);
-                    }
-                }
-            });
-        }
+
     }
 
     @Override
@@ -99,7 +83,7 @@ public class MainActivity extends AppCompatActivity {
         castParams.rightMargin = margin;
         castButton.setLayoutParams(castParams);
         castButton.setTag("castBtn");
-        castButton.setVisibility(android.view.View.GONE);
+        castButton.setVisibility(android.view.View.VISIBLE);
         frame.addView(castButton);
 
         setContentView(frame);
