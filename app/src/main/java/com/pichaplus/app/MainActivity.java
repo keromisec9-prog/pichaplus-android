@@ -48,6 +48,15 @@ public class MainActivity extends AppCompatActivity {
             }
         }
 
+        @JavascriptInterface
+        public void showCastButton(boolean show) {
+            runOnUiThread(() -> {
+                if (castButton != null) {
+                    castButton.setVisibility(show ? android.view.View.VISIBLE : android.view.View.GONE);
+                }
+            });
+        }
+
 
     }
 
@@ -84,7 +93,7 @@ public class MainActivity extends AppCompatActivity {
         castParams.rightMargin = sideMargin;
         castButton.setLayoutParams(castParams);
         castButton.setTag("castBtn");
-        castButton.setVisibility(android.view.View.VISIBLE);
+        castButton.setVisibility(android.view.View.GONE);
         frame.addView(castButton);
 
         setContentView(frame);
