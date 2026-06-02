@@ -76,8 +76,8 @@ public class MainActivity extends AppCompatActivity {
         castButton = new MediaRouteButton(this);
         CastButtonFactory.setUpMediaRouteButton(this, castButton);
         int size = (int) (40 * getResources().getDisplayMetrics().density);
-        int sideMargin = (int) (56 * getResources().getDisplayMetrics().density);
-        int topMargin = (int) (28 * getResources().getDisplayMetrics().density);
+        int sideMargin = (int) (145 * getResources().getDisplayMetrics().density);
+        int topMargin = (int) (24 * getResources().getDisplayMetrics().density);
         FrameLayout.LayoutParams castParams = new FrameLayout.LayoutParams(size, size);
         castParams.gravity = Gravity.TOP | Gravity.END;
         castParams.topMargin = topMargin;
