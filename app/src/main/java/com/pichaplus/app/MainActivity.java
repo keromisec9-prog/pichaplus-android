@@ -1,6 +1,5 @@
 package com.pichaplus.app;
 
-import android.app.Activity;
 import android.app.DownloadManager;
 import android.content.Context;
 import android.graphics.Color;
@@ -9,7 +8,7 @@ import android.net.NetworkInfo;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Environment;
-import android.view.View;
+import android.view.Gravity;
 import android.view.Window;
 import android.webkit.CookieManager;
 import android.webkit.DownloadListener;
@@ -23,9 +22,14 @@ import android.webkit.WebViewClient;
 import android.widget.FrameLayout;
 import android.Manifest;
 import android.content.pm.PackageManager;
+import androidx.appcompat.app.AppCompatActivity;
+import androidx.mediarouter.app.MediaRouteButton;
+import com.google.android.gms.cast.framework.CastButtonFactory;
+import com.google.android.gms.cast.framework.CastContext;
 
-public class MainActivity extends Activity {
+public class MainActivity extends AppCompatActivity {
     private WebView webView;
+    private CastContext castContext;
     private static final String HOME_URL = "https://keromisec9-prog.github.io/picha-plus/";
     private static final String OFFLINE_URL = "file:///android_asset/offline.html";
 
@@ -35,7 +39,6 @@ public class MainActivity extends Activity {
         return info != null && info.isConnected();
     }
 
-    // JavaScript interface to receive session token from website
     public class PichaJSBridge {
         @JavascriptInterface
         public void onSessionToken(String token) {
@@ -51,13 +54,29 @@ public class MainActivity extends Activity {
         requestWindowFeature(Window.FEATURE_NO_TITLE);
         getWindow().setStatusBarColor(Color.BLACK);
 
+        castContext = CastContext.getSharedInstance(this);
+
         FrameLayout frame = new FrameLayout(this);
+
         webView = new WebView(this);
         webView.setLayoutParams(new FrameLayout.LayoutParams(
             FrameLayout.LayoutParams.MATCH_PARENT,
             FrameLayout.LayoutParams.MATCH_PARENT));
         webView.setBackgroundColor(Color.parseColor("#0f0f0f"));
         frame.addView(webView);
+
+        // Cast button — top right, above the WebView
+        MediaRouteButton castButton = new MediaRouteButton(this);
+        CastButtonFactory.setUpMediaRouteButton(this, castButton);
+        int size = (int) (40 * getResources().getDisplayMetrics().density);
+        int margin = (int) (12 * getResources().getDisplayMetrics().density);
+        FrameLayout.LayoutParams castParams = new FrameLayout.LayoutParams(size, size);
+        castParams.gravity = Gravity.TOP | Gravity.END;
+        castParams.topMargin = margin;
+        castParams.rightMargin = margin;
+        castButton.setLayoutParams(castParams);
+        frame.addView(castButton);
+
         setContentView(frame);
 
         WebSettings settings = webView.getSettings();
@@ -74,14 +93,12 @@ public class MainActivity extends Activity {
             "(KHTML, like Gecko) Chrome/123.0.0.0 Mobile Safari/537.36"
         );
 
-        // Request notification permission on Android 13+
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
             if (checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
                 requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, 1001);
             }
         }
 
-        // Add JS bridge
         webView.addJavascriptInterface(new PichaJSBridge(), "PichaApp");
 
         webView.setDownloadListener(new DownloadListener() {
@@ -115,12 +132,11 @@ public class MainActivity extends Activity {
 
             @Override
             public void onPageFinished(WebView view, String url) {
-                // Read session token from localStorage and pass to app
                 view.evaluateJavascript(
                     "(function(){ return localStorage.getItem('pichaplus_session'); })()",
                     value -> {
                         if (value != null && !value.equals("null")) {
-                            String token = value.replaceAll("\"", "");
+                            String token = value.replaceAll("\\"", "");
                             PichaTokenManager.saveSession(MainActivity.this, token);
                         }
                     }
