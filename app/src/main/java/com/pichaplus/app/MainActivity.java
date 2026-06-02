@@ -151,6 +151,11 @@ public class MainActivity extends AppCompatActivity {
                         }
                     }
                 );
+                // Only show cast button on main app page
+                boolean isMainPage = url != null && url.contains("keromisec9-prog.github.io/picha-plus");
+                if (castButton != null) {
+                    castButton.setVisibility(isMainPage ? android.view.View.VISIBLE : android.view.View.GONE);
+                }
             }
 
             @Override
