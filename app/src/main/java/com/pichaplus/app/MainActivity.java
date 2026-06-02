@@ -79,6 +79,7 @@ public class MainActivity extends AppCompatActivity {
         castParams.topMargin = margin;
         castParams.rightMargin = margin;
         castButton.setLayoutParams(castParams);
+        castButton.setVisibility(android.view.View.GONE);
         frame.addView(castButton);
 
         setContentView(frame);
