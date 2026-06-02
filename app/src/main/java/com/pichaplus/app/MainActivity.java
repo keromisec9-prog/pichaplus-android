@@ -54,7 +54,11 @@ public class MainActivity extends AppCompatActivity {
         requestWindowFeature(Window.FEATURE_NO_TITLE);
         getWindow().setStatusBarColor(Color.BLACK);
 
-        castContext = CastContext.getSharedInstance(this);
+        try {
+            castContext = CastContext.getSharedInstance(this);
+        } catch (Exception e) {
+            castContext = null;
+        }
 
         FrameLayout frame = new FrameLayout(this);
 
