@@ -46,6 +46,14 @@ public class MainActivity extends AppCompatActivity {
                 PichaTokenManager.saveSession(MainActivity.this, token);
             }
         }
+
+        @JavascriptInterface
+        public void startCast() {
+            runOnUiThread(() -> {
+                MediaRouteButton btn = (MediaRouteButton) webView.getParent().findViewWithTag("castBtn");
+                if (btn != null) btn.performClick();
+            });
+        }
     }
 
     @Override
