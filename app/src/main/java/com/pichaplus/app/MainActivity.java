@@ -84,13 +84,12 @@ public class MainActivity extends AppCompatActivity {
         // Cast button — top right, above the WebView
         castButton = new MediaRouteButton(this);
         CastButtonFactory.setUpMediaRouteButton(this, castButton);
-        int size = (int) (40 * getResources().getDisplayMetrics().density);
-        int sideMargin = (int) (160 * getResources().getDisplayMetrics().density);
-        int topMargin = (int) (10 * getResources().getDisplayMetrics().density);
+        int size = (int) (48 * getResources().getDisplayMetrics().density);
+        int margin = (int) (16 * getResources().getDisplayMetrics().density);
         FrameLayout.LayoutParams castParams = new FrameLayout.LayoutParams(size, size);
-        castParams.gravity = Gravity.TOP | Gravity.END;
-        castParams.topMargin = topMargin;
-        castParams.rightMargin = sideMargin;
+        castParams.gravity = Gravity.BOTTOM | Gravity.END;
+        castParams.bottomMargin = margin;
+        castParams.rightMargin = margin;
         castButton.setLayoutParams(castParams);
         castButton.setTag("castBtn");
         castButton.setVisibility(android.view.View.GONE);
