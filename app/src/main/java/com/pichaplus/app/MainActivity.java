@@ -106,10 +106,7 @@ public class MainActivity extends AppCompatActivity {
         settings.setLoadWithOverviewMode(true);
         settings.setUseWideViewPort(true);
         settings.setCacheMode(WebSettings.LOAD_DEFAULT);
-        settings.setUserAgentString(
-            "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 " +
-            "(KHTML, like Gecko) Chrome/123.0.0.0 Mobile Safari/537.36"
-        );
+        // Real system WebView UA used (required for Google OAuth)
 
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
             if (checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
@@ -145,17 +142,17 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
                 String url = request.getUrl().toString();
-                if (url.contains("keromisec9-prog.github.io/picha-plus") ||
-                    url.contains("picha-plus-worker") ||
-                    url.startsWith("file:///android_asset")) {
-                    view.loadUrl(url);
+                // Only WhatsApp opens externally
+                if (url.contains("wa.me") || url.startsWith("whatsapp://")) {
+                    try {
+                        Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
+                        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                        startActivity(intent);
+                    } catch (Exception e) {}
                     return true;
                 }
-                try {
-                    Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
-                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                    startActivity(intent);
-                } catch (Exception e) {}
+                // Everything else (Google OAuth, etc.) loads inside WebView
+                view.loadUrl(url);
                 return true;
             }
 
