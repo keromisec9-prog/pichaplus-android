@@ -7,6 +7,7 @@ import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.net.Uri;
 import android.content.Intent;
+import androidx.browser.customtabs.CustomTabsIntent;
 import android.os.Bundle;
 import android.os.Environment;
 import android.view.Gravity;
@@ -142,7 +143,7 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
                 String url = request.getUrl().toString();
-                // Only WhatsApp opens externally
+                // WhatsApp opens in app
                 if (url.contains("wa.me") || url.startsWith("whatsapp://")) {
                     try {
                         Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
@@ -151,7 +152,12 @@ public class MainActivity extends AppCompatActivity {
                     } catch (Exception e) {}
                     return true;
                 }
-                // Everything else (Google OAuth, etc.) loads inside WebView
+                // Google OAuth must open in Custom Tab (WebView is blocked by Google)
+                if (url.contains("accounts.google.com")) {
+                    new CustomTabsIntent.Builder().build().launchUrl(MainActivity.this, request.getUrl());
+                    return true;
+                }
+                // Everything else loads inside WebView
                 view.loadUrl(url);
                 return true;
             }
