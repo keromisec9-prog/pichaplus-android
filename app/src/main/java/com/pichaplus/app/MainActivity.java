@@ -155,14 +155,6 @@ public class MainActivity extends AppCompatActivity {
                     return true;
                 }
                 // Google OAuth must open in external browser (WebView blocked by Google)
-                if (url.contains("accounts.google.com")) {
-                    try {
-                        Intent intent = new Intent(Intent.ACTION_VIEW, request.getUrl());
-                        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                        startActivity(intent);
-                    } catch (Exception e) {}
-                    return true;
-                }
                 // Everything else loads inside WebView
                 view.loadUrl(url);
                 return true;
