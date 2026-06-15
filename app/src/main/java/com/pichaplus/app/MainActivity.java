@@ -106,7 +106,10 @@ public class MainActivity extends AppCompatActivity {
         settings.setLoadWithOverviewMode(true);
         settings.setUseWideViewPort(true);
         settings.setCacheMode(WebSettings.LOAD_DEFAULT);
-        // Real system WebView UA used (required for Google OAuth)
+        settings.setUserAgentString(
+            "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 " +
+            "(KHTML, like Gecko) Chrome/123.0.0.0 Mobile Safari/537.36"
+        );
 
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
             if (checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
