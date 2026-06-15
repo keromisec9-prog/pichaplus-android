@@ -6,7 +6,6 @@ import android.graphics.Color;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.net.Uri;
-import android.content.Intent;
 import android.os.Bundle;
 import android.os.Environment;
 import android.view.Gravity;
@@ -143,19 +142,8 @@ public class MainActivity extends AppCompatActivity {
 
         webView.setWebViewClient(new WebViewClient() {
             @Override
-            public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
-                String url = request.getUrl().toString();
-                if (url.contains("keromisec9-prog.github.io/picha-plus") ||
-                    url.contains("picha-plus-worker") ||
-                    url.startsWith("file:///android_asset")) {
-                    view.loadUrl(url);
-                    return true;
-                }
-                try {
-                    Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
-                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                    startActivity(intent);
-                } catch (Exception e) {}
+            public boolean shouldOverrideUrlLoading(WebView view, String url) {
+                view.loadUrl(url);
                 return true;
             }
 
@@ -180,8 +168,7 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onReceivedError(WebView view, WebResourceRequest request,
                                         WebResourceError error) {
-                if (request.isForMainFrame() &&
-                    request.getUrl().toString().contains("keromisec9-prog.github.io")) {
+                if (request.isForMainFrame()) {
                     view.loadUrl(OFFLINE_URL);
                 }
             }
