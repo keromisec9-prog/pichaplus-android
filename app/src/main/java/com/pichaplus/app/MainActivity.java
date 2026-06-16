@@ -158,7 +158,11 @@ public class MainActivity extends AppCompatActivity {
                     return true;
                 }
                 // Google OAuth must open in external browser (WebView blocked by Google)
-                // Everything else loads inside WebView
+                // Check connectivity before loading anything
+                if (!isConnected()) {
+                    view.loadUrl(OFFLINE_URL);
+                    return true;
+                }
                 view.loadUrl(url);
                 return true;
             }
@@ -198,6 +202,9 @@ public class MainActivity extends AppCompatActivity {
         } else {
             webView.loadUrl(OFFLINE_URL);
         }
+
+        // Also intercept any navigation attempt when offline
+        webView.setNetworkAvailable(isConnected());
     }
 
     @Override
