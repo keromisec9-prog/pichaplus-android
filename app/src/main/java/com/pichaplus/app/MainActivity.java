@@ -146,7 +146,10 @@ public class MainActivity extends AppCompatActivity {
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
                 String url = request.getUrl().toString();
                 // WhatsApp opens in app
-                if (url.contains("wa.me") || url.startsWith("whatsapp://")) {
+                if (url.contains("wa.me") || url.startsWith("whatsapp://") ||
+                    url.startsWith("fb://") || url.contains("facebook.com") ||
+                    url.startsWith("snssdk") || url.startsWith("tiktok://") || url.contains("tiktok.com") ||
+                    (!url.startsWith("http") && !url.startsWith("file"))) {
                     try {
                         Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
                         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
