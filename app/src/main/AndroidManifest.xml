@@ -33,7 +33,8 @@
             android:name=".MainActivity"
             android:exported="false"
             android:screenOrientation="unspecified"
-            android:configChanges="orientation|screenSize"/>
+            android:configChanges="orientation|screenSize|keyboardHidden|keyboard"
+            android:windowSoftInputMode="adjustPan"/>
         <service
             android:name=".PichaFirebaseService"
             android:exported="false">
