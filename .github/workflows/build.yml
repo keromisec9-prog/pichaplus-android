@@ -21,8 +21,15 @@ jobs:
           echo "/tmp/gradle/gradle-8.0/bin" >> $GITHUB_PATH
       - name: Build APK
         run: gradle assembleRelease
+      - name: Build AAB
+        run: gradle bundleRelease
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: pichaplus-release
           path: app/build/outputs/apk/release/*.apk
+      - name: Upload AAB
+        uses: actions/upload-artifact@v4
+        with:
+          name: pichaplus-bundle
+          path: app/build/outputs/bundle/release/*.aab
