@@ -5,6 +5,16 @@
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28"/>
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32"/>
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+    <!-- Declare TV support: leanback UI is used but not strictly required,
+         so this same APK can still install on phones/tablets. -->
+    <uses-feature
+        android:name="android.software.leanback"
+        android:required="false"/>
+    <!-- TVs have no touchscreen — without this, some stores/filters exclude the app from TV -->
+    <uses-feature
+        android:name="android.hardware.touchscreen"
+        android:required="false"/>
+
     <queries>
         <intent>
             <action android:name="android.intent.action.VIEW"/>
@@ -18,6 +28,7 @@
     <application
         android:label="PichaPlus"
         android:icon="@mipmap/ic_launcher"
+        android:banner="@drawable/tv_banner"
         android:theme="@style/Theme.PichaPlus">
         <activity
             android:name=".SplashActivity"
@@ -27,6 +38,11 @@
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+            <!-- Makes the app appear on the Android TV home screen launcher -->
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LEANBACK_LAUNCHER"/>
             </intent-filter>
         </activity>
         <activity
