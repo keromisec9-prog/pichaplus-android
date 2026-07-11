@@ -3,9 +3,9 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="#0f0f0f">
-    <ImageView
+    <WebView
+        android:id="@+id/splashWebView"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:src="@drawable/splash_logo"
-        android:scaleType="centerCrop"/>
+        android:background="#0f0f0f"/>
 </FrameLayout>

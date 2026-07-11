@@ -6,6 +6,7 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.view.Window;
 import android.view.WindowManager;
+import android.webkit.WebView;
 
 public class SplashActivity extends Activity {
     @Override
@@ -17,6 +18,11 @@ public class SplashActivity extends Activity {
             WindowManager.LayoutParams.FLAG_FULLSCREEN
         );
         setContentView(R.layout.activity_splash);
+
+        WebView splashWebView = findViewById(R.id.splashWebView);
+        splashWebView.getSettings().setJavaScriptEnabled(true);
+        splashWebView.setBackgroundColor(0xFF0F0F0F);
+        splashWebView.loadUrl("file:///android_asset/splash.html");
 
         new Handler().postDelayed(() -> {
             startActivity(new Intent(SplashActivity.this, MainActivity.class));
