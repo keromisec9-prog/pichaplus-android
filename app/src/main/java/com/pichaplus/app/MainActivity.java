@@ -117,6 +117,8 @@ public class MainActivity extends AppCompatActivity {
         settings.setLoadWithOverviewMode(true);
         settings.setUseWideViewPort(true);
         settings.setCacheMode(WebSettings.LOAD_DEFAULT);
+        webView.setLayerType(android.view.View.LAYER_TYPE_HARDWARE, null);
+        webView.setOverScrollMode(android.view.View.OVER_SCROLL_NEVER);
         settings.setUserAgentString(
             "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 " +
             "(KHTML, like Gecko) Chrome/123.0.0.0 Mobile Safari/537.36"
