@@ -32,6 +32,9 @@ public class MainActivity extends AppCompatActivity {
     private WebView webView;
     private CastContext castContext;
     private MediaRouteButton castButton;
+    private FrameLayout fullscreenContainer;
+    private android.view.View customView;
+    private WebChromeClient.CustomViewCallback customViewCallback;
     private static final String HOME_URL = "https://keromisec9-prog.github.io/picha-plus/";
     private static final String OFFLINE_URL = "file:///android_asset/offline.html";
 
@@ -94,6 +97,14 @@ public class MainActivity extends AppCompatActivity {
         castButton.setTag("castBtn");
         castButton.setVisibility(android.view.View.GONE);
         frame.addView(castButton);
+
+        fullscreenContainer = new FrameLayout(this);
+        fullscreenContainer.setLayoutParams(new FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.MATCH_PARENT,
+            FrameLayout.LayoutParams.MATCH_PARENT));
+        fullscreenContainer.setBackgroundColor(Color.BLACK);
+        fullscreenContainer.setVisibility(android.view.View.GONE);
+        frame.addView(fullscreenContainer);
 
         setContentView(frame);
 
@@ -219,7 +230,38 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
-        webView.setWebChromeClient(new WebChromeClient());
+        webView.setWebChromeClient(new WebChromeClient() {
+            @Override
+            public void onShowCustomView(android.view.View view, CustomViewCallback callback) {
+                if (customView != null) {
+                    callback.onCustomViewHidden();
+                    return;
+                }
+                customView = view;
+                customViewCallback = callback;
+                fullscreenContainer.addView(view, new FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                    FrameLayout.LayoutParams.MATCH_PARENT));
+                fullscreenContainer.setVisibility(android.view.View.VISIBLE);
+                fullscreenContainer.bringToFront();
+                setRequestedOrientation(android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE);
+                hideSystemUI();
+            }
+
+            @Override
+            public void onHideCustomView() {
+                if (customView == null) return;
+                fullscreenContainer.removeView(customView);
+                fullscreenContainer.setVisibility(android.view.View.GONE);
+                customView = null;
+                if (customViewCallback != null) {
+                    customViewCallback.onCustomViewHidden();
+                    customViewCallback = null;
+                }
+                setRequestedOrientation(android.content.pm.ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED);
+                showSystemUI();
+            }
+        });
 
         if (isConnected()) {
             webView.loadUrl(HOME_URL);
@@ -231,9 +273,26 @@ public class MainActivity extends AppCompatActivity {
         webView.setNetworkAvailable(isConnected());
     }
 
+    private void hideSystemUI() {
+        getWindow().getDecorView().setSystemUiVisibility(
+            android.view.View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+            | android.view.View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+            | android.view.View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+            | android.view.View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+            | android.view.View.SYSTEM_UI_FLAG_FULLSCREEN
+            | android.view.View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);
+    }
+
+    private void showSystemUI() {
+        getWindow().getDecorView().setSystemUiVisibility(
+            android.view.View.SYSTEM_UI_FLAG_LAYOUT_STABLE);
+    }
+
     @Override
     public void onBackPressed() {
-        if (webView.canGoBack()) {
+        if (customView != null) {
+            webView.getWebChromeClient().onHideCustomView();
+        } else if (webView.canGoBack()) {
             webView.goBack();
         } else {
             super.onBackPressed();
