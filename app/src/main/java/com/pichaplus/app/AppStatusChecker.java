@@ -22,12 +22,14 @@ public class AppStatusChecker {
         public String title;
         public String message;
         public String endTime;
+        public String statusCode; // "investigating" | "applying_fix" | "verifying" | "almost_ready"
 
-        AppStatus(boolean maintenance, String title, String message, String endTime) {
+        AppStatus(boolean maintenance, String title, String message, String endTime, String statusCode) {
             this.maintenance = maintenance;
             this.title = title;
             this.message = message;
             this.endTime = endTime;
+            this.statusCode = statusCode;
         }
     }
 
@@ -44,7 +46,7 @@ public class AppStatusChecker {
                     conn.setRequestProperty("X-Pv-Build", PV_BUILD_TOKEN);
 
                     int code = conn.getResponseCode();
-                    if (code != 200) return new AppStatus(false, null, null, null);
+                    if (code != 200) return new AppStatus(false, null, null, null, null);
 
                     BufferedReader reader = new BufferedReader(
                         new InputStreamReader(conn.getInputStream()));
@@ -58,11 +60,12 @@ public class AppStatusChecker {
                         json.optBoolean("maintenance", false),
                         json.optString("title", null),
                         json.optString("message", null),
-                        json.optString("endTime", null)
+                        json.optString("endTime", null),
+                        json.optString("statusCode", null)
                     );
                 } catch (Exception e) {
                     // Fail open: if the check itself breaks, don't block the app
-                    return new AppStatus(false, null, null, null);
+                    return new AppStatus(false, null, null, null, null);
                 }
             }
 

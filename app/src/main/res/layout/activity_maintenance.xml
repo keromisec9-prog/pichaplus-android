@@ -33,16 +33,66 @@
         android:textSize="15sp"
         android:text="We're upgrading our servers." />
 
-    <TextView
-        android:id="@+id/countdownText"
+    <LinearLayout
+        android:id="@+id/countdownRow"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
+        android:orientation="horizontal"
         android:layout_marginTop="24dp"
-        android:textColor="#FFFFFF"
-        android:textSize="26sp"
-        android:textStyle="bold"
-        android:fontFamily="monospace"
-        android:text="" />
+        android:visibility="gone">
+
+        <LinearLayout android:layout_width="wrap_content" android:layout_height="wrap_content" android:orientation="vertical" android:gravity="center" android:layout_marginEnd="14dp">
+            <TextView android:id="@+id/countDays" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="00" android:textColor="#FFFFFF" android:textSize="30sp" android:textStyle="bold" android:fontFamily="monospace"/>
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Days" android:textColor="#5A5A62" android:textSize="11sp"/>
+        </LinearLayout>
+
+        <LinearLayout android:layout_width="wrap_content" android:layout_height="wrap_content" android:orientation="vertical" android:gravity="center" android:layout_marginEnd="14dp">
+            <TextView android:id="@+id/countHours" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="00" android:textColor="#FFFFFF" android:textSize="30sp" android:textStyle="bold" android:fontFamily="monospace"/>
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Hours" android:textColor="#5A5A62" android:textSize="11sp"/>
+        </LinearLayout>
+
+        <LinearLayout android:layout_width="wrap_content" android:layout_height="wrap_content" android:orientation="vertical" android:gravity="center" android:layout_marginEnd="14dp">
+            <TextView android:id="@+id/countMinutes" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="00" android:textColor="#FFFFFF" android:textSize="30sp" android:textStyle="bold" android:fontFamily="monospace"/>
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Minutes" android:textColor="#5A5A62" android:textSize="11sp"/>
+        </LinearLayout>
+
+        <LinearLayout android:layout_width="wrap_content" android:layout_height="wrap_content" android:orientation="vertical" android:gravity="center">
+            <TextView android:id="@+id/countSeconds" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="00" android:textColor="#FFFFFF" android:textSize="30sp" android:textStyle="bold" android:fontFamily="monospace"/>
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Seconds" android:textColor="#5A5A62" android:textSize="11sp"/>
+        </LinearLayout>
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/statusBadgeRow"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:layout_marginTop="24dp"
+        android:background="#1A1A1F"
+        android:paddingLeft="16dp"
+        android:paddingRight="16dp"
+        android:paddingTop="10dp"
+        android:paddingBottom="10dp"
+        android:visibility="gone">
+
+        <TextView
+            android:id="@+id/statusDot"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="🟡"
+            android:textSize="14sp"
+            android:layout_marginEnd="8dp"/>
+
+        <TextView
+            android:id="@+id/statusLabel"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Investigating"
+            android:textColor="#FFFFFF"
+            android:textSize="14sp"
+            android:textStyle="bold"/>
+    </LinearLayout>
 
     <Button
         android:id="@+id/retryButton"

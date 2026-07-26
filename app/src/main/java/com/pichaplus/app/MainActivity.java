@@ -272,6 +272,7 @@ public class MainActivity extends AppCompatActivity {
                     intent.putExtra("title", status.title);
                     intent.putExtra("message", status.message);
                     intent.putExtra("endTime", status.endTime);
+                    intent.putExtra("statusCode", status.statusCode);
                     startActivity(intent);
                     finish();
                 } else {

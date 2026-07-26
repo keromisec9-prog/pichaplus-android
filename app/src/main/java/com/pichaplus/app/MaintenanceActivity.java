@@ -3,7 +3,9 @@ package com.pichaplus.app;
 import android.content.Intent;
 import android.os.Bundle;
 import android.os.CountDownTimer;
+import android.view.View;
 import android.widget.Button;
+import android.widget.LinearLayout;
 import android.widget.TextView;
 import androidx.appcompat.app.AppCompatActivity;
 import java.text.SimpleDateFormat;
@@ -14,6 +16,13 @@ import java.util.TimeZone;
 public class MaintenanceActivity extends AppCompatActivity {
 
     private CountDownTimer timer;
+    private final android.os.Handler pollHandler = new android.os.Handler(android.os.Looper.getMainLooper());
+    private final Runnable pollRunnable = this::pollStatus;
+
+    private TextView countDays, countHours, countMinutes, countSeconds;
+    private LinearLayout countdownRow, statusBadgeRow;
+    private TextView statusDot, statusLabel;
+    private TextView lastCheckedView;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -22,28 +31,28 @@ public class MaintenanceActivity extends AppCompatActivity {
 
         TextView titleView = findViewById(R.id.maintenanceTitle);
         TextView messageView = findViewById(R.id.maintenanceMessage);
-        TextView countdownView = findViewById(R.id.countdownText);
-        TextView lastCheckedView = findViewById(R.id.lastChecked);
         Button retryButton = findViewById(R.id.retryButton);
+        lastCheckedView = findViewById(R.id.lastChecked);
+
+        countdownRow = findViewById(R.id.countdownRow);
+        countDays = findViewById(R.id.countDays);
+        countHours = findViewById(R.id.countHours);
+        countMinutes = findViewById(R.id.countMinutes);
+        countSeconds = findViewById(R.id.countSeconds);
+
+        statusBadgeRow = findViewById(R.id.statusBadgeRow);
+        statusDot = findViewById(R.id.statusDot);
+        statusLabel = findViewById(R.id.statusLabel);
 
         String title = getIntent().getStringExtra("title");
         String message = getIntent().getStringExtra("message");
         String endTime = getIntent().getStringExtra("endTime");
+        String statusCode = getIntent().getStringExtra("statusCode");
 
         titleView.setText(title != null ? title : "Scheduled Maintenance");
         messageView.setText(message != null ? message : "We're upgrading our servers.");
 
-        long endMillis = parseIso8601(endTime);
-        if (endMillis <= 0) {
-            countdownView.setText("Estimated completion: To be announced");
-        } else {
-            long remaining = endMillis - System.currentTimeMillis();
-            if (remaining > 0) {
-                startCountdown(countdownView, remaining);
-            } else {
-                countdownView.setText("Estimated completion: To be announced");
-            }
-        }
+        applyTimeOrStatus(endTime, statusCode);
 
         lastCheckedView.setText("Last checked: " +
             new SimpleDateFormat("h:mm:ss a", Locale.getDefault()).format(new Date()));
@@ -53,8 +62,39 @@ public class MaintenanceActivity extends AppCompatActivity {
         schedulePoll();
     }
 
-    private final android.os.Handler pollHandler = new android.os.Handler(android.os.Looper.getMainLooper());
-    private final Runnable pollRunnable = this::pollStatus;
+    private void applyTimeOrStatus(String endTime, String statusCode) {
+        long endMillis = parseIso8601(endTime);
+        long remaining = endMillis > 0 ? endMillis - System.currentTimeMillis() : -1;
+
+        if (remaining > 0) {
+            countdownRow.setVisibility(View.VISIBLE);
+            statusBadgeRow.setVisibility(View.GONE);
+            startCountdown(remaining);
+        } else {
+            countdownRow.setVisibility(View.GONE);
+            statusBadgeRow.setVisibility(View.VISIBLE);
+            applyStatusBadge(statusCode);
+        }
+    }
+
+    private void applyStatusBadge(String statusCode) {
+        String code = statusCode != null ? statusCode : "investigating";
+        String dot;
+        String label;
+        switch (code) {
+            case "applying_fix":
+                dot = "\uD83D\uDFE0"; label = "Applying a Fix"; break;
+            case "verifying":
+                dot = "\uD83D\uDD35"; label = "Verifying Systems"; break;
+            case "almost_ready":
+                dot = "\uD83D\uDFE2"; label = "Almost Ready"; break;
+            case "investigating":
+            default:
+                dot = "\uD83D\uDFE1"; label = "Investigating"; break;
+        }
+        statusDot.setText(dot);
+        statusLabel.setText(label);
+    }
 
     private void schedulePoll() {
         pollHandler.postDelayed(pollRunnable, 20000);
@@ -88,7 +128,7 @@ public class MaintenanceActivity extends AppCompatActivity {
         }
     }
 
-    private void startCountdown(TextView view, long millis) {
+    private void startCountdown(long millis) {
         if (timer != null) timer.cancel();
         timer = new CountDownTimer(millis, 1000) {
             @Override
@@ -97,11 +137,10 @@ public class MaintenanceActivity extends AppCompatActivity {
                 long h = (ms / (1000 * 60 * 60)) % 24;
                 long m = (ms / (1000 * 60)) % 60;
                 long s = (ms / 1000) % 60;
-                if (d > 0) {
-                    view.setText(String.format(Locale.US, "%dd %02d:%02d:%02d", d, h, m, s));
-                } else {
-                    view.setText(String.format(Locale.US, "%02d:%02d:%02d", h, m, s));
-                }
+                countDays.setText(String.format(Locale.US, "%02d", d));
+                countHours.setText(String.format(Locale.US, "%02d", h));
+                countMinutes.setText(String.format(Locale.US, "%02d", m));
+                countSeconds.setText(String.format(Locale.US, "%02d", s));
             }
             @Override
             public void onFinish() {
@@ -111,12 +150,12 @@ public class MaintenanceActivity extends AppCompatActivity {
     }
 
     private void recheckStatus() {
-        TextView lastCheckedView = findViewById(R.id.lastChecked);
         AppStatusChecker.fetch(status -> {
             if (!status.maintenance) {
                 startActivity(new Intent(MaintenanceActivity.this, MainActivity.class));
                 finish();
             } else {
+                applyTimeOrStatus(status.endTime, status.statusCode);
                 lastCheckedView.setText("Last checked: " +
                     new SimpleDateFormat("h:mm:ss a", Locale.getDefault()).format(new Date()));
             }
