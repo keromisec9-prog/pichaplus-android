@@ -266,7 +266,18 @@ public class MainActivity extends AppCompatActivity {
         });
 
         if (isConnected()) {
-            webView.loadUrl(HOME_URL);
+            AppStatusChecker.fetch(status -> {
+                if (status.maintenance) {
+                    Intent intent = new Intent(MainActivity.this, MaintenanceActivity.class);
+                    intent.putExtra("title", status.title);
+                    intent.putExtra("message", status.message);
+                    intent.putExtra("endTime", status.endTime);
+                    startActivity(intent);
+                    finish();
+                } else {
+                    webView.loadUrl(HOME_URL);
+                }
+            });
         } else {
             webView.loadUrl(OFFLINE_URL);
         }

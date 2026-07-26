@@ -30,6 +30,7 @@
         android:icon="@mipmap/ic_launcher"
         android:banner="@drawable/tv_banner"
         android:theme="@style/Theme.PichaPlus">
+        <activity android:name=".MaintenanceActivity" android:exported="false" android:theme="@style/Theme.PichaPlus"/>
         <activity
             android:name=".SplashActivity"
             android:exported="true"
