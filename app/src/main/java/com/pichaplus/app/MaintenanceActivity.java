@@ -41,7 +41,7 @@ public class MaintenanceActivity extends AppCompatActivity {
             if (remaining > 0) {
                 startCountdown(countdownView, remaining);
             } else {
-                recheckStatus();
+                countdownView.setText("Estimated completion: To be announced");
             }
         }
 
@@ -49,6 +49,26 @@ public class MaintenanceActivity extends AppCompatActivity {
             new SimpleDateFormat("h:mm:ss a", Locale.getDefault()).format(new Date()));
 
         retryButton.setOnClickListener(v -> recheckStatus());
+
+        schedulePoll();
+    }
+
+    private final android.os.Handler pollHandler = new android.os.Handler(android.os.Looper.getMainLooper());
+    private final Runnable pollRunnable = this::pollStatus;
+
+    private void schedulePoll() {
+        pollHandler.postDelayed(pollRunnable, 20000);
+    }
+
+    private void pollStatus() {
+        AppStatusChecker.fetch(status -> {
+            if (!status.maintenance) {
+                startActivity(new Intent(MaintenanceActivity.this, MainActivity.class));
+                finish();
+            } else {
+                schedulePoll();
+            }
+        });
     }
 
     private long parseIso8601(String iso) {
@@ -91,17 +111,14 @@ public class MaintenanceActivity extends AppCompatActivity {
     }
 
     private void recheckStatus() {
+        TextView lastCheckedView = findViewById(R.id.lastChecked);
         AppStatusChecker.fetch(status -> {
-            if (status.maintenance) {
-                Intent intent = new Intent(MaintenanceActivity.this, MaintenanceActivity.class);
-                intent.putExtra("title", status.title);
-                intent.putExtra("message", status.message);
-                intent.putExtra("endTime", status.endTime);
-                startActivity(intent);
-                finish();
-            } else {
+            if (!status.maintenance) {
                 startActivity(new Intent(MaintenanceActivity.this, MainActivity.class));
                 finish();
+            } else {
+                lastCheckedView.setText("Last checked: " +
+                    new SimpleDateFormat("h:mm:ss a", Locale.getDefault()).format(new Date()));
             }
         });
     }
@@ -109,6 +126,7 @@ public class MaintenanceActivity extends AppCompatActivity {
     @Override
     protected void onDestroy() {
         if (timer != null) timer.cancel();
+        pollHandler.removeCallbacks(pollRunnable);
         super.onDestroy();
     }
 }
