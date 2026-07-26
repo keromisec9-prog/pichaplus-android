@@ -10,8 +10,8 @@ import java.net.URL;
 public class AppStatusChecker {
 
     private static final String STATUS_URL =
-    private static final String PV_BUILD_TOKEN = "230285ef7c5f5e229cb6295bc7053470";
         "https://picha-plus-worker.kerosoftz522.workers.dev/app-status";
+    private static final String PV_BUILD_TOKEN = "230285ef7c5f5e229cb6295bc7053470";
 
     public interface Callback {
         void onResult(AppStatus status);
