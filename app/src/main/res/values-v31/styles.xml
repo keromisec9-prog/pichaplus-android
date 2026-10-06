@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.PichaPlus.Splash" parent="Theme.PichaPlus">
+        <item name="android:windowBackground">@drawable/splash_background</item>
+        <item name="android:windowSplashScreenBackground">#0f0f0f</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@android:color/transparent</item>
+        <item name="android:windowSplashScreenIconBackgroundColor">#0f0f0f</item>
+        <item name="android:windowSplashScreenBrandingImage">@android:color/transparent</item>
+    </style>
+</resources>
