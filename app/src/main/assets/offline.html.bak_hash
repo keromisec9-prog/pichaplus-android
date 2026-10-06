@@ -198,7 +198,6 @@ function initBtn(){
 }
 function showDownloads(){ $('offlineView').style.display='none'; $('dlView').style.display='block'; render(); }
 function hideDownloads(){
-  if (FROMSITE) { history.back(); return; }
   clearInterval(heroTimer); closeSheet(); selecting=false; sel={};
   $('selBar').style.display='none'; $('dlView').style.display='none'; $('offlineView').style.display='flex'; initBtn();
 }
@@ -384,12 +383,7 @@ function askClose(){ $('askWrap').style.display='none'; }
 
 window.addEventListener('focus',function(){ if($('dlView').style.display==='block'&&!curPanel) render(); });
 document.addEventListener('visibilitychange',function(){ if(!document.hidden&&$('dlView').style.display==='block'&&!curPanel) render(); });
-var FROMSITE = (location.hash === '#downloads');
-window.addEventListener('hashchange', function(){
-  if (location.hash === '#downloads') { FROMSITE = true; showDownloads(); }
-});
 initIcons(); initBtn();
-if (FROMSITE) showDownloads();
 </script>
 </body>
 </html>

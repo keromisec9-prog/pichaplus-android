@@ -82,11 +82,6 @@ public class MainActivity extends AppCompatActivity {
         }
 
         @JavascriptInterface
-        public void openDownloads() {
-            runOnUiThread(() -> webView.loadUrl(OFFLINE_URL + "#downloads"));
-        }
-
-        @JavascriptInterface
         public void onSessionToken(String token) {
             if (token != null && !token.isEmpty() && !token.equals("null")) {
                 PichaTokenManager.saveSession(MainActivity.this, token);
