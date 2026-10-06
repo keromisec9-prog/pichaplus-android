@@ -26,7 +26,7 @@
     </queries>
 
     <application
-        android:label="PichaPlus"
+        android:label="MyPichaPlus"
         android:icon="@mipmap/ic_launcher"
         android:banner="@drawable/tv_banner"
         android:theme="@style/Theme.PichaPlus">
