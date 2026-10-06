@@ -45,6 +45,27 @@ public class MainActivity extends AppCompatActivity {
     }
 
     public class PichaJSBridge {
+
+        @JavascriptInterface
+        public String queueDownload(String url, String filename, String title, String poster) {
+            return String.valueOf(PichaDownloads.queue(MainActivity.this, url, filename, title, poster));
+        }
+
+        @JavascriptInterface
+        public String getDownloads() {
+            return PichaDownloads.list(MainActivity.this);
+        }
+
+        @JavascriptInterface
+        public boolean playDownload(long id) {
+            return PichaDownloads.play(MainActivity.this, id);
+        }
+
+        @JavascriptInterface
+        public void removeDownload(long id) {
+            PichaDownloads.remove(MainActivity.this, id);
+        }
+
         @JavascriptInterface
         public void onSessionToken(String token) {
             if (token != null && !token.isEmpty() && !token.equals("null")) {

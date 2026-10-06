@@ -30,6 +30,7 @@
         android:icon="@mipmap/ic_launcher"
         android:banner="@drawable/tv_banner"
         android:theme="@style/Theme.PichaPlus">
+        <activity android:name=".PlayerActivity" android:exported="false" android:screenOrientation="sensorLandscape" android:configChanges="orientation|screenSize|keyboardHidden|smallestScreenSize|screenLayout" android:theme="@android:style/Theme.NoTitleBar.Fullscreen"/>
         <activity android:name=".MaintenanceActivity" android:exported="false" android:theme="@style/Theme.PichaPlus"/>
         <activity
             android:name=".SplashActivity"
