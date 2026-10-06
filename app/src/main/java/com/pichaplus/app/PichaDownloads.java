@@ -3,10 +3,12 @@ package com.pichaplus.app;
 import android.app.DownloadManager;
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.database.Cursor;
 import android.net.Uri;
 import android.os.Environment;
 import android.os.ParcelFileDescriptor;
+import android.os.StatFs;
 import android.util.Base64;
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -17,6 +19,8 @@ import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class PichaDownloads {
     private static final String PREFS = "picha_downloads";
@@ -78,6 +82,13 @@ public class PichaDownloads {
         } catch (Exception e) { return false; }
     }
 
+    public static long freeBytes() {
+        try {
+            StatFs s = new StatFs(Environment.getExternalStorageDirectory().getPath());
+            return s.getAvailableBytes();
+        } catch (Exception e) { return 0; }
+    }
+
     public static long queue(Context c, String url, String filename, String title, String posterUrl) {
         try {
             if (title == null) title = "";
@@ -107,6 +118,7 @@ public class PichaDownloads {
     public static String list(Context c) {
         try {
             DownloadManager dm = (DownloadManager) c.getSystemService(Context.DOWNLOAD_SERVICE);
+            SharedPreferences pp = c.getSharedPreferences("picha_pos", Context.MODE_PRIVATE);
             JSONArray a = load(c);
             JSONArray keep = new JSONArray();
             JSONArray out = new JSONArray();
@@ -140,6 +152,10 @@ public class PichaDownloads {
                 j.put("title", o.optString("title"));
                 j.put("status", status);
                 j.put("bytes", bytes);
+                j.put("ts", o.optLong("ts"));
+                j.put("pos", pp.getInt("pos_" + id, 0));
+                j.put("dur", pp.getInt("dur_" + id, 0));
+                j.put("seen", pp.getLong("seen_" + id, 0));
                 j.put("poster", posterData(c, id));
                 out.put(j);
             }
@@ -164,6 +180,22 @@ public class PichaDownloads {
             it.putExtra("uri", u.toString());
             it.putExtra("id", id);
             it.putExtra("title", title);
+            Matcher m = Pattern.compile("^(.*?)\\s+E(\\d+)$").matcher(title);
+            if (m.matches()) {
+                String want = m.group(1) + " E" + (Integer.parseInt(m.group(2)) + 1);
+                for (int i = 0; i < a.length(); i++) {
+                    JSONObject o = a.optJSONObject(i);
+                    if (o != null && want.equals(o.optString("title"))) {
+                        long nid = o.optLong("id");
+                        if (fileOk(dm, nid)) {
+                            it.putExtra("nextId", nid);
+                            it.putExtra("nextTitle", want);
+                            File pf = posterFile(c, nid);
+                            if (pf.exists()) it.putExtra("nextPoster", pf.getAbsolutePath());
+                        }
+                    }
+                }
+            }
             c.startActivity(it);
             return true;
         } catch (Exception e) { return false; }
@@ -175,6 +207,8 @@ public class PichaDownloads {
             dm.remove(id);
         } catch (Exception e) {}
         posterFile(c, id).delete();
+        c.getSharedPreferences("picha_pos", Context.MODE_PRIVATE).edit()
+            .remove("pos_" + id).remove("dur_" + id).remove("seen_" + id).apply();
         JSONArray a = load(c);
         JSONArray keep = new JSONArray();
         for (int i = 0; i < a.length(); i++) {

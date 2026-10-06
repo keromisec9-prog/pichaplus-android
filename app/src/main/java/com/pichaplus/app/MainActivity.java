@@ -52,6 +52,11 @@ public class MainActivity extends AppCompatActivity {
         }
 
         @JavascriptInterface
+        public String getFreeBytes() {
+            return String.valueOf(PichaDownloads.freeBytes());
+        }
+
+        @JavascriptInterface
         public String getDownloads() {
             return PichaDownloads.list(MainActivity.this);
         }

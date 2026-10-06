@@ -3,86 +3,235 @@
 <head>
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <style>
-  * { margin:0; padding:0; box-sizing:border-box; }
-  body { background:#0f0f0f; color:#fff; font-family:'Inter',sans-serif; min-height:100vh; }
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  body { background:#0c0c0c; color:#fff; font-family:Roboto,'Segoe UI',sans-serif; min-height:100vh; }
+  svg { fill:currentColor; display:block; }
   #offlineView { display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:100vh; text-align:center; padding:2rem; }
-  img.hero { width:200px; height:auto; margin-bottom:2rem; border-radius:16px; }
+  img.hero0 { width:200px; height:auto; margin-bottom:2rem; border-radius:16px; }
   h1 { font-size:1.5rem; margin-bottom:0.5rem; color:#e5b93c; }
-  p { color:#888; font-size:0.9rem; margin-bottom:2rem; }
-  .btn { background:#e5b93c; color:#000; border:none; padding:0.8rem 2rem; border-radius:8px; font-size:1rem; font-weight:600; cursor:pointer; margin:0.4rem 0; min-width:230px; }
+  p.sub { color:#888; font-size:0.9rem; margin-bottom:2rem; }
+  .btn { background:#e5b93c; color:#000; border:none; padding:0.8rem 2rem; border-radius:8px; font-size:1rem; font-weight:600; margin:0.4rem 0; min-width:230px; }
   .btn.ghost { background:transparent; color:#e5b93c; border:1px solid #e5b93c; }
-  #dlView { display:none; padding:1rem; }
-  .top { display:flex; align-items:center; gap:0.8rem; margin-bottom:1rem; }
-  .top h2 { font-size:1.2rem; }
-  .back { background:none; border:none; color:#e5b93c; font-size:1.6rem; cursor:pointer; }
-  .row { display:flex; align-items:center; gap:0.8rem; padding:0.75rem 0; border-bottom:1px solid rgba(255,255,255,0.07); }
-  .poster { width:46px; height:66px; object-fit:cover; border-radius:4px; background:#1e1e1e; flex-shrink:0; }
+
+  #dlView { display:none; padding-bottom:2rem; }
+  .bar { display:flex; align-items:center; gap:0.6rem; padding:1rem 1rem 0.8rem; }
+  .ibtn { background:none; border:none; color:#e5b93c; width:40px; height:40px; display:flex; align-items:center; justify-content:center; border-radius:50%; }
+  .ibtn svg { width:28px; height:28px; }
+  .bar h2 { font-size:1.45rem; font-weight:700; flex:1; }
+  .store { display:flex; align-items:center; gap:0.4rem; font-size:0.78rem; line-height:1.2; }
+  .store svg { width:26px; height:26px; color:#e5b93c; }
+  .store small { color:#999; display:block; font-size:0.7rem; }
+  .kebab { border:1px solid #2c2c2c; color:#ddd; }
+  .kebab svg { width:22px; height:22px; }
+
+  .hero { position:relative; margin:0.4rem 0 0; height:210px; overflow:hidden; border-bottom:1px solid rgba(229,185,60,0.4); }
+  .hero img.bg { position:absolute; inset:-20px; width:calc(100% + 40px); height:calc(100% + 40px); object-fit:cover; filter:blur(14px) brightness(0.55) saturate(1.2); }
+  .hero .bgfall { position:absolute; inset:0; background:linear-gradient(135deg,#3a2410,#14100c); }
+  .hero .shade { position:absolute; inset:0; background:linear-gradient(90deg,rgba(0,0,0,0.65),rgba(0,0,0,0.1)),linear-gradient(0deg,#0c0c0c 2%,transparent 45%); }
+  .hero .in { position:absolute; left:1.2rem; right:1.2rem; bottom:1.1rem; }
+  .lab { color:#e5b93c; font-size:0.72rem; letter-spacing:0.28em; font-weight:700; margin-bottom:0.35rem; }
+  .ht { font-size:1.35rem; font-weight:700; margin-bottom:0.55rem; text-shadow:0 2px 8px #000; }
+  .prog { display:flex; align-items:center; gap:0.6rem; margin-bottom:0.8rem; max-width:340px; }
+  .track { flex:1; height:4px; border-radius:2px; background:rgba(255,255,255,0.25); overflow:hidden; }
+  .fill { height:100%; background:#e5b93c; border-radius:2px; }
+  .pct { font-size:0.8rem; color:#ccc; }
+  .pbtn { display:inline-flex; align-items:center; gap:0.5rem; background:#e5b93c; color:#111; border:none; border-radius:30px; padding:0.65rem 1.4rem; font-weight:800; letter-spacing:0.15em; font-size:0.85rem; }
+  .pbtn svg { width:20px; height:20px; }
+
+  .sec { display:flex; align-items:center; gap:0.6rem; padding:1.3rem 1rem 0.3rem; }
+  .sec svg { width:30px; height:30px; color:#e5b93c; }
+  .sec h3 { font-size:1.2rem; font-weight:700; }
+  .pill { border:1px solid rgba(229,185,60,0.6); color:#e5b93c; border-radius:20px; padding:0.15rem 0.7rem; font-size:0.78rem; }
+  .tools { display:flex; align-items:center; gap:0.9rem; padding:0.4rem 1rem 0.9rem; color:#aaa; font-size:0.88rem; }
+  .tools .sep { width:1px; height:18px; background:#333; }
+  .tools button { background:none; border:none; color:#aaa; display:flex; align-items:center; gap:0.35rem; font-size:0.88rem; }
+  .tools button svg { width:20px; height:20px; }
+  .tools button.on { color:#e5b93c; }
+
+  .card { display:flex; align-items:center; gap:0.9rem; margin:0 1rem 0.7rem; padding:0.7rem; background:#141414; border:1px solid #262626; border-radius:14px; }
+  .poster { width:78px; height:108px; object-fit:cover; border-radius:8px; background:#222; flex-shrink:0; }
   .info { flex:1; min-width:0; }
-  .t { font-size:0.9rem; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-  .s { font-size:0.72rem; color:#46d369; margin-top:2px; }
-  .s.run { color:#888; }
-  .play { width:2.6rem; height:2.6rem; border-radius:50%; background:#e5b93c; border:none; cursor:pointer; font-size:1.1rem; flex-shrink:0; }
-  .del { background:none; border:none; color:rgba(255,255,255,0.35); font-size:1.2rem; padding:0.4rem; cursor:pointer; }
-  .empty { color:#888; text-align:center; margin-top:3rem; }
+  .ct { font-size:1.05rem; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .cm { color:#9a9a9a; font-size:0.85rem; margin-top:3px; }
+  .ok { display:flex; align-items:center; gap:0.35rem; color:#3ddc84; font-size:0.85rem; margin-top:6px; }
+  .ok svg { width:18px; height:18px; }
+  .ok.run { color:#aaa; }
+  .wp { height:3px; background:#2a2a2a; border-radius:2px; margin-top:8px; overflow:hidden; }
+  .wp div { height:100%; background:#e5b93c; }
+  .go { width:46px; height:46px; border-radius:50%; background:#e5b93c; color:#111; border:none; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+  .go svg { width:26px; height:26px; }
+  .more { background:none; border:none; color:#aaa; width:32px; height:40px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+  .more svg { width:22px; height:22px; }
+  .more.del { color:#ff5a5a; }
+  .foot { display:flex; flex-direction:column; align-items:center; gap:0.5rem; color:#888; font-size:0.85rem; text-align:center; margin:1.6rem 1rem 0; }
+  .foot svg { width:26px; height:26px; color:#777; }
+  .empty { color:#888; text-align:center; margin:3rem 1rem; }
+
+  #sheetWrap { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:10; align-items:flex-end; }
+  .sheet { width:100%; background:#1a1a1a; border-radius:18px 18px 0 0; padding:0.6rem 0 1.2rem; }
+  .sheet .t { padding:0.8rem 1.3rem; color:#999; font-size:0.85rem; }
+  .sheet button { display:flex; align-items:center; gap:0.9rem; width:100%; background:none; border:none; color:#fff; font-size:1rem; padding:0.95rem 1.3rem; text-align:left; }
+  .sheet button svg { width:22px; height:22px; }
+  .sheet button.red { color:#ff5a5a; }
+  #askWrap { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:20; align-items:center; justify-content:center; padding:1.5rem; }
+  .ask { background:#1a1a1a; border-radius:16px; padding:1.4rem; width:100%; max-width:340px; }
+  .ask p { margin-bottom:1.2rem; line-height:1.4; }
+  .ask .row { display:flex; gap:0.7rem; justify-content:flex-end; }
+  .ask button { border:none; border-radius:8px; padding:0.65rem 1.2rem; font-weight:700; font-size:0.95rem; }
+  .ask .no { background:#2a2a2a; color:#fff; }
+  .ask .yes { background:#ff5a5a; color:#111; }
 </style>
 </head>
 <body>
   <div id="offlineView">
-    <img class="hero" src="file:///android_asset/offline.png" alt="Offline"/>
+    <img class="hero0" src="file:///android_asset/offline.png" alt="Offline"/>
     <h1>You're Offline</h1>
-    <p>Check your internet connection and try again.</p>
+    <p class="sub">Check your internet connection and try again.</p>
     <button class="btn" id="dlBtn" style="display:none" onclick="showDownloads()">View My Downloads</button>
     <button class="btn ghost" onclick="location.href='https://keromisec9-prog.github.io/picha-plus/'">Try Again</button>
   </div>
+
   <div id="dlView">
-    <div class="top"><button class="back" onclick="hideDownloads()">&#8592;</button><h2>My Downloads</h2></div>
+    <div class="bar">
+      <button class="ibtn" onclick="hideDownloads()" id="icBack"></button>
+      <h2>My Downloads</h2>
+      <div class="store"><span id="icStore"></span><div><span id="usedTxt"></span><small id="freeTxt"></small></div></div>
+      <button class="ibtn kebab" onclick="headerMenu()" id="icKebab"></button>
+    </div>
+    <div id="heroBox"></div>
+    <div class="sec"><span id="icSec"></span><h3>Downloaded for offline</h3><span class="pill" id="countPill"></span></div>
+    <div class="tools">
+      <span id="usedTxt2"></span><span class="sep"></span>
+      <button id="manageBtn" onclick="toggleManage()"><span id="icTune"></span>Manage</button><span class="sep"></span>
+      <button onclick="cycleSort()"><span id="icSort"></span><span id="sortTxt">Sort</span></button>
+    </div>
     <div id="list"></div>
+    <div class="foot" id="foot" style="display:none"><span id="icFoot"></span><div>Your downloaded content is available offline.<br>Enjoy anytime, anywhere.</div></div>
   </div>
+
+  <div id="sheetWrap" onclick="closeSheet()"><div class="sheet" id="sheet" onclick="event.stopPropagation()"></div></div>
+  <div id="askWrap"><div class="ask"><p id="askMsg"></p><div class="row"><button class="no" onclick="askClose()">Cancel</button><button class="yes" id="askYes">Delete</button></div></div></div>
+
 <script>
+var IC = {
+  back:'M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z',
+  down:'M5 20h14v-2H5v2zM19 9h-4V3H9v6H5l7 7 7-7z',
+  kebab:'M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z',
+  play:'M8 5v14l11-7z',
+  check:'M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z',
+  tune:'M3 17v2h6v-2H3zM3 5v2h10V5H3zm10 16v-2h8v-2h-8v-2h-2v6h2zM7 9v2H3v2h4v2h2V9H7zm14 4v-2H11v2h10zm-6-4h2V7h4V5h-4V3h-2v6z',
+  sort:'M16 17.01V10h-2v7.01h-3L15 21l4-3.99h-3zM9 3L5 6.99h3V14h2V6.99h3L9 3z',
+  del:'M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z'
+};
+function svg(k){ return '<svg viewBox="0 0 24 24"><path d="'+IC[k]+'"/></svg>'; }
+function $(id){ return document.getElementById(id); }
+function esc(s){ var d=document.createElement('div'); d.textContent=s==null?'':String(s); return d.innerHTML; }
+function fmt(b){ if(!b||b<=0) return '0 MB'; return b>=1073741824 ? (b/1073741824).toFixed(1)+' GB' : Math.max(1,Math.round(b/1048576))+' MB'; }
+function parse(t){ var m=/^(.*?)\s+E(\d+)$/.exec(t||''); return m?{base:m[1],ep:m[2]}:{base:t||'Video',ep:null}; }
 function getDls(){ try { return JSON.parse(window.PichaApp.getDownloads()); } catch(e){ return []; } }
-function fmt(b){ if(!b||b<=0) return ''; return b>=1073741824 ? (b/1073741824).toFixed(1)+' GB' : Math.round(b/1048576)+' MB'; }
+function getFree(){ try { return parseFloat(window.PichaApp.getFreeBytes())||0; } catch(e){ return 0; } }
+
+var sortMode=0, sortNames=['Recent','Name','Size'], manage=false, DATA=[];
+
+function initIcons(){
+  $('icBack').innerHTML=svg('back'); $('icStore').innerHTML=svg('down'); $('icKebab').innerHTML=svg('kebab');
+  $('icSec').innerHTML=svg('down'); $('icTune').innerHTML=svg('tune'); $('icSort').innerHTML=svg('sort'); $('icFoot').innerHTML=svg('down');
+}
 function initBtn(){
   if(!window.PichaApp || !window.PichaApp.getDownloads) return;
   var n=getDls().filter(function(x){return x.status==='done';}).length;
-  var b=document.getElementById('dlBtn');
-  b.style.display='inline-block';
+  var b=$('dlBtn'); b.style.display='inline-block';
   b.textContent='View My Downloads'+(n?' ('+n+')':'');
 }
-function showDownloads(){
-  document.getElementById('offlineView').style.display='none';
-  document.getElementById('dlView').style.display='block';
-  render();
+function showDownloads(){ $('offlineView').style.display='none'; $('dlView').style.display='block'; render(); }
+function hideDownloads(){ $('dlView').style.display='none'; $('offlineView').style.display='flex'; initBtn(); }
+
+function sorted(d){
+  var a=d.slice();
+  if(sortMode===0) a.sort(function(x,y){return (y.ts||0)-(x.ts||0);});
+  else if(sortMode===1) a.sort(function(x,y){return (x.title||'').localeCompare(y.title||'');});
+  else a.sort(function(x,y){return (y.bytes||0)-(x.bytes||0);});
+  return a;
 }
-function hideDownloads(){
-  document.getElementById('dlView').style.display='none';
-  document.getElementById('offlineView').style.display='flex';
-  initBtn();
-}
+function cycleSort(){ sortMode=(sortMode+1)%3; render(); }
+function toggleManage(){ manage=!manage; render(); }
+
 function render(){
-  var list=document.getElementById('list'); list.innerHTML='';
-  var d=getDls();
-  if(!d.length){ list.innerHTML='<div class="empty">No downloads yet.</div>'; return; }
-  d.forEach(function(x){
-    var row=document.createElement('div'); row.className='row';
-    var img=document.createElement('img'); img.className='poster'; if(x.poster) img.src=x.poster;
-    var info=document.createElement('div'); info.className='info';
-    var t=document.createElement('div'); t.className='t'; t.textContent=x.title||'Video';
-    var s=document.createElement('div'); s.className='s'+(x.status==='done'?'':' run');
-    s.textContent=x.status==='done' ? ('Downloaded'+(fmt(x.bytes)?' \u00b7 '+fmt(x.bytes):'')) : 'Downloading\u2026';
-    info.appendChild(t); info.appendChild(s);
-    row.appendChild(img); row.appendChild(info);
-    if(x.status==='done'){
-      var p=document.createElement('button'); p.className='play'; p.innerHTML='&#9654;';
-      p.onclick=function(){ if(!window.PichaApp.playDownload(x.id)){ alert('File not found'); render(); } };
-      row.appendChild(p);
-    }
-    var del=document.createElement('button'); del.className='del'; del.innerHTML='&#10005;';
-    del.onclick=function(){ if(confirm('Delete this download?')){ window.PichaApp.removeDownload(x.id); render(); } };
-    row.appendChild(del);
-    list.appendChild(row);
+  DATA=getDls();
+  var done=DATA.filter(function(x){return x.status==='done';});
+  var used=0; DATA.forEach(function(x){ used+=x.bytes||0; });
+  $('usedTxt').textContent=fmt(used)+' used';
+  $('usedTxt2').textContent=fmt(used)+' used';
+  var free=getFree(); $('freeTxt').textContent=free?'('+fmt(free)+' available)':'';
+  var titles={}; DATA.forEach(function(x){ titles[parse(x.title).base]=1; });
+  var nt=Object.keys(titles).length; $('countPill').textContent=nt+(nt===1?' title':' titles');
+  $('sortTxt').textContent='Sort: '+sortNames[sortMode];
+  $('manageBtn').className=manage?'on':'';
+
+  var hb=$('heroBox'); hb.innerHTML='';
+  if(done.length){
+    var cand=done.filter(function(x){ return x.pos>0 && x.dur>0 && x.pos/x.dur<0.95; });
+    var h, cont=false;
+    if(cand.length){ cand.sort(function(a,b){return (b.seen||0)-(a.seen||0);}); h=cand[0]; cont=true; }
+    else { var r=done.slice().sort(function(a,b){return (b.ts||0)-(a.ts||0);}); h=r[0]; }
+    var p=parse(h.title); var pct=cont?Math.round(h.pos/h.dur*100):0;
+    var el=document.createElement('div'); el.className='hero';
+    el.innerHTML=(h.poster?'<img class="bg" src="'+h.poster+'">':'<div class="bgfall"></div>')+'<div class="shade"></div><div class="in">'+
+      '<div class="lab">'+(cont?'CONTINUE WATCHING':'READY TO WATCH')+'</div>'+
+      '<div class="ht">'+esc(p.base)+(p.ep?' \u00b7 Episode '+p.ep:'')+'</div>'+
+      (cont?'<div class="prog"><div class="track"><div class="fill" style="width:'+pct+'%"></div></div><span class="pct">'+pct+'%</span></div>':'<div style="height:6px"></div>')+
+      '<button class="pbtn">'+svg('play')+(cont?'PLAY EPISODE':'PLAY')+'</button></div>';
+    el.querySelector('.pbtn').onclick=function(){ playIt(h.id); };
+    hb.appendChild(el);
+  }
+
+  var list=$('list'); list.innerHTML='';
+  if(!DATA.length){ list.innerHTML='<div class="empty">No downloads yet.</div>'; $('foot').style.display='none'; return; }
+  $('foot').style.display='flex';
+  sorted(DATA).forEach(function(x){
+    var p=parse(x.title), isDone=x.status==='done';
+    var card=document.createElement('div'); card.className='card';
+    var pct=(x.pos>0&&x.dur>0)?Math.min(100,Math.round(x.pos/x.dur*100)):0;
+    card.innerHTML=(x.poster?'<img class="poster" src="'+x.poster+'">':'<div class="poster"></div>')+
+      '<div class="info"><div class="ct">'+esc(p.base)+'</div>'+
+      '<div class="cm">'+(p.ep?'Episode '+p.ep+' \u00b7 ':'')+fmt(x.bytes)+'</div>'+
+      '<div class="ok'+(isDone?'':' run')+'">'+(isDone?svg('check')+'Available offline':'Downloading\u2026')+'</div>'+
+      (isDone&&pct>0?'<div class="wp"><div style="width:'+pct+'%"></div></div>':'')+'</div>'+
+      (isDone?'<button class="go">'+svg('play')+'</button>':'')+
+      '<button class="more'+(manage?' del':'')+'">'+svg(manage?'del':'kebab')+'</button>';
+    if(isDone) card.querySelector('.go').onclick=function(){ playIt(x.id); };
+    card.querySelector('.more').onclick=function(){ if(manage) confirmDel(x); else cardMenu(x); };
+    list.appendChild(card);
   });
 }
-initBtn();
+
+function playIt(id){ try { if(!window.PichaApp.playDownload(id)){ render(); } } catch(e){} }
+function doDel(id){ try { window.PichaApp.removeDownload(id); } catch(e){} render(); initBtn(); }
+function confirmDel(x){ ask('Delete "'+(x.title||'this download')+'" from this device?', function(){ doDel(x.id); }); }
+
+function openSheet(html){ $('sheet').innerHTML=html; $('sheetWrap').style.display='flex'; }
+function closeSheet(){ $('sheetWrap').style.display='none'; }
+function cardMenu(x){
+  var p=parse(x.title);
+  openSheet('<div class="t">'+esc(p.base)+(p.ep?' \u00b7 Episode '+p.ep:'')+'</div>'+
+    (x.status==='done'?'<button id="sP">'+svg('play')+'Play</button>':'')+
+    '<button class="red" id="sD">'+svg('del')+'Delete download</button>');
+  if($('sP')) $('sP').onclick=function(){ closeSheet(); playIt(x.id); };
+  $('sD').onclick=function(){ closeSheet(); confirmDel(x); };
+}
+function headerMenu(){
+  openSheet('<button id="sM">'+svg('tune')+(manage?'Done managing':'Manage downloads')+'</button>'+
+            '<button class="red" id="sA">'+svg('del')+'Delete all downloads</button>');
+  $('sM').onclick=function(){ closeSheet(); toggleManage(); };
+  $('sA').onclick=function(){ closeSheet(); if(!DATA.length) return;
+    ask('Delete all '+DATA.length+' downloads from this device?', function(){ DATA.forEach(function(x){ try{ window.PichaApp.removeDownload(x.id);}catch(e){} }); render(); initBtn(); }); };
+}
+function ask(msg, yes){ $('askMsg').textContent=msg; $('askWrap').style.display='flex'; $('askYes').onclick=function(){ askClose(); yes(); }; }
+function askClose(){ $('askWrap').style.display='none'; }
+
+window.addEventListener('focus', function(){ if($('dlView').style.display==='block') render(); });
+document.addEventListener('visibilitychange', function(){ if(!document.hidden && $('dlView').style.display==='block') render(); });
+initIcons(); initBtn();
 </script>
 </body>
 </html>

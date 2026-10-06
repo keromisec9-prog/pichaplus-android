@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html style="background:#0f0f0f;margin:0;padding:0;">
+<head>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:#0f0f0f; color:#fff; font-family:'Inter',sans-serif; min-height:100vh; }
+  #offlineView { display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:100vh; text-align:center; padding:2rem; }
+  img.hero { width:200px; height:auto; margin-bottom:2rem; border-radius:16px; }
+  h1 { font-size:1.5rem; margin-bottom:0.5rem; color:#e5b93c; }
+  p { color:#888; font-size:0.9rem; margin-bottom:2rem; }
+  .btn { background:#e5b93c; color:#000; border:none; padding:0.8rem 2rem; border-radius:8px; font-size:1rem; font-weight:600; cursor:pointer; margin:0.4rem 0; min-width:230px; }
+  .btn.ghost { background:transparent; color:#e5b93c; border:1px solid #e5b93c; }
+  #dlView { display:none; padding:1rem; }
+  .top { display:flex; align-items:center; gap:0.8rem; margin-bottom:1rem; }
+  .top h2 { font-size:1.2rem; }
+  .back { background:none; border:none; color:#e5b93c; font-size:1.6rem; cursor:pointer; }
+  .row { display:flex; align-items:center; gap:0.8rem; padding:0.75rem 0; border-bottom:1px solid rgba(255,255,255,0.07); }
+  .poster { width:46px; height:66px; object-fit:cover; border-radius:4px; background:#1e1e1e; flex-shrink:0; }
+  .info { flex:1; min-width:0; }
+  .t { font-size:0.9rem; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .s { font-size:0.72rem; color:#46d369; margin-top:2px; }
+  .s.run { color:#888; }
+  .play { width:2.6rem; height:2.6rem; border-radius:50%; background:#e5b93c; border:none; cursor:pointer; font-size:1.1rem; flex-shrink:0; }
+  .del { background:none; border:none; color:rgba(255,255,255,0.35); font-size:1.2rem; padding:0.4rem; cursor:pointer; }
+  .empty { color:#888; text-align:center; margin-top:3rem; }
+</style>
+</head>
+<body>
+  <div id="offlineView">
+    <img class="hero" src="file:///android_asset/offline.png" alt="Offline"/>
+    <h1>You're Offline</h1>
+    <p>Check your internet connection and try again.</p>
+    <button class="btn" id="dlBtn" style="display:none" onclick="showDownloads()">View My Downloads</button>
+    <button class="btn ghost" onclick="location.href='https://keromisec9-prog.github.io/picha-plus/'">Try Again</button>
+  </div>
+  <div id="dlView">
+    <div class="top"><button class="back" onclick="hideDownloads()">&#8592;</button><h2>My Downloads</h2></div>
+    <div id="list"></div>
+  </div>
+<script>
+function getDls(){ try { return JSON.parse(window.PichaApp.getDownloads()); } catch(e){ return []; } }
+function fmt(b){ if(!b||b<=0) return ''; return b>=1073741824 ? (b/1073741824).toFixed(1)+' GB' : Math.round(b/1048576)+' MB'; }
+function initBtn(){
+  if(!window.PichaApp || !window.PichaApp.getDownloads) return;
+  var n=getDls().filter(function(x){return x.status==='done';}).length;
+  var b=document.getElementById('dlBtn');
+  b.style.display='inline-block';
+  b.textContent='View My Downloads'+(n?' ('+n+')':'');
+}
+function showDownloads(){
+  document.getElementById('offlineView').style.display='none';
+  document.getElementById('dlView').style.display='block';
+  render();
+}
+function hideDownloads(){
+  document.getElementById('dlView').style.display='none';
+  document.getElementById('offlineView').style.display='flex';
+  initBtn();
+}
+function render(){
+  var list=document.getElementById('list'); list.innerHTML='';
+  var d=getDls();
+  if(!d.length){ list.innerHTML='<div class="empty">No downloads yet.</div>'; return; }
+  d.forEach(function(x){
+    var row=document.createElement('div'); row.className='row';
+    var img=document.createElement('img'); img.className='poster'; if(x.poster) img.src=x.poster;
+    var info=document.createElement('div'); info.className='info';
+    var t=document.createElement('div'); t.className='t'; t.textContent=x.title||'Video';
+    var s=document.createElement('div'); s.className='s'+(x.status==='done'?'':' run');
+    s.textContent=x.status==='done' ? ('Downloaded'+(fmt(x.bytes)?' \u00b7 '+fmt(x.bytes):'')) : 'Downloading\u2026';
+    info.appendChild(t); info.appendChild(s);
+    row.appendChild(img); row.appendChild(info);
+    if(x.status==='done'){
+      var p=document.createElement('button'); p.className='play'; p.innerHTML='&#9654;';
+      p.onclick=function(){ if(!window.PichaApp.playDownload(x.id)){ alert('File not found'); render(); } };
+      row.appendChild(p);
+    }
+    var del=document.createElement('button'); del.className='del'; del.innerHTML='&#10005;';
+    del.onclick=function(){ if(confirm('Delete this download?')){ window.PichaApp.removeDownload(x.id); render(); } };
+    row.appendChild(del);
+    list.appendChild(row);
+  });
+}
+initBtn();
+</script>
+</body>
+</html>
