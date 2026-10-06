@@ -336,7 +336,7 @@ public class PlayerActivity extends Activity {
             showControls();
         });
         video.setOnCompletionListener(player -> {
-            sp.edit().remove("pos_" + dlId).putLong("seen_" + dlId, System.currentTimeMillis()).apply();
+            sp.edit().remove("pos_" + dlId).putLong("seen_" + dlId, System.currentTimeMillis()).putBoolean("watched_" + dlId, true).apply();
             if (nextId > 0 && PichaDownloads.play(this, nextId)) { finish(); return; }
             finish();
         });

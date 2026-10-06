@@ -52,6 +52,16 @@ public class MainActivity extends AppCompatActivity {
         }
 
         @JavascriptInterface
+        public boolean getWifiOnly() {
+            return PichaDownloads.wifiOnly(MainActivity.this);
+        }
+
+        @JavascriptInterface
+        public void setWifiOnly(boolean v) {
+            PichaDownloads.setWifiOnly(MainActivity.this, v);
+        }
+
+        @JavascriptInterface
         public String getFreeBytes() {
             return String.valueOf(PichaDownloads.freeBytes());
         }

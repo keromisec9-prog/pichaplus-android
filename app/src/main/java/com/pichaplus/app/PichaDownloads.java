@@ -82,6 +82,14 @@ public class PichaDownloads {
         } catch (Exception e) { return false; }
     }
 
+    public static boolean wifiOnly(Context c) {
+        return c.getSharedPreferences("picha_settings", Context.MODE_PRIVATE).getBoolean("wifi_only", false);
+    }
+
+    public static void setWifiOnly(Context c, boolean v) {
+        c.getSharedPreferences("picha_settings", Context.MODE_PRIVATE).edit().putBoolean("wifi_only", v).apply();
+    }
+
     public static long freeBytes() {
         try {
             StatFs s = new StatFs(Environment.getExternalStorageDirectory().getPath());
@@ -99,6 +107,7 @@ public class PichaDownloads {
             r.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
             r.setAllowedOverMetered(true);
             r.setAllowedOverRoaming(true);
+            if (wifiOnly(c)) r.setAllowedNetworkTypes(DownloadManager.Request.NETWORK_WIFI);
             r.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS,
                 "picha_" + System.currentTimeMillis() + ".mp4");
             DownloadManager dm = (DownloadManager) c.getSystemService(Context.DOWNLOAD_SERVICE);
@@ -129,12 +138,14 @@ public class PichaDownloads {
                 long id = o.optLong("id");
                 String status = "gone";
                 long bytes = 0;
+                long got = 0;
                 Cursor cur = dm.query(new DownloadManager.Query().setFilterById(id));
                 if (cur != null) {
                     try {
                         if (cur.moveToFirst()) {
                             int st = cur.getInt(cur.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS));
                             bytes = cur.getLong(cur.getColumnIndexOrThrow(DownloadManager.COLUMN_TOTAL_SIZE_BYTES));
+                            got = cur.getLong(cur.getColumnIndexOrThrow(DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR));
                             if (st == DownloadManager.STATUS_SUCCESSFUL) status = fileOk(dm, id) ? "done" : "gone";
                             else if (st == DownloadManager.STATUS_FAILED) status = "failed";
                             else status = "running";
@@ -152,10 +163,12 @@ public class PichaDownloads {
                 j.put("title", o.optString("title"));
                 j.put("status", status);
                 j.put("bytes", bytes);
+                j.put("got", got);
                 j.put("ts", o.optLong("ts"));
                 j.put("pos", pp.getInt("pos_" + id, 0));
                 j.put("dur", pp.getInt("dur_" + id, 0));
                 j.put("seen", pp.getLong("seen_" + id, 0));
+                j.put("watched", pp.getBoolean("watched_" + id, false));
                 j.put("poster", posterData(c, id));
                 out.put(j);
             }
@@ -208,7 +221,7 @@ public class PichaDownloads {
         } catch (Exception e) {}
         posterFile(c, id).delete();
         c.getSharedPreferences("picha_pos", Context.MODE_PRIVATE).edit()
-            .remove("pos_" + id).remove("dur_" + id).remove("seen_" + id).apply();
+            .remove("pos_" + id).remove("dur_" + id).remove("seen_" + id).remove("watched_" + id).apply();
         JSONArray a = load(c);
         JSONArray keep = new JSONArray();
         for (int i = 0; i < a.length(); i++) {
