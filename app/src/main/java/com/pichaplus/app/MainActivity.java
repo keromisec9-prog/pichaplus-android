@@ -182,6 +182,18 @@ public class MainActivity extends AppCompatActivity {
         webView.addJavascriptInterface(new PichaJSBridge(), "PichaApp");
         webView.addJavascriptInterface(new Object() {
             @android.webkit.JavascriptInterface
+            public boolean get() {
+                return getSharedPreferences("pp_prefs", MODE_PRIVATE).getBoolean("autofill", false);
+            }
+            @android.webkit.JavascriptInterface
+            public void set(boolean on) {
+                getSharedPreferences("pp_prefs", MODE_PRIVATE).edit().putBoolean("autofill", on).apply();
+                runOnUiThread(() -> ppApplyAutofill(on));
+            }
+        }, "PPAutofill");
+        ppApplyAutofill(getSharedPreferences("pp_prefs", MODE_PRIVATE).getBoolean("autofill", false));
+        webView.addJavascriptInterface(new Object() {
+            @android.webkit.JavascriptInterface
             public void want(boolean b) { pp_wantKb = b; }
         }, "PPKb");
         ppWatchAutofill();
@@ -376,6 +388,16 @@ public class MainActivity extends AppCompatActivity {
         super.onWindowFocusChanged(hasFocus);
         if (!hasFocus) { pp_lostFocusAt = System.currentTimeMillis(); return; }
         if (pp_wantKb && System.currentTimeMillis() - pp_lostFocusAt < 1500) ppShowKb(50);
+    }
+
+    private void ppApplyAutofill(boolean on) {
+        if (android.os.Build.VERSION.SDK_INT < 26 || webView == null) return;
+        webView.setImportantForAutofill(on
+            ? android.view.View.IMPORTANT_FOR_AUTOFILL_AUTO
+            : android.view.View.IMPORTANT_FOR_AUTOFILL_NO_EXCLUDE_DESCENDANTS);
+        android.view.autofill.AutofillManager am =
+            getSystemService(android.view.autofill.AutofillManager.class);
+        if (am != null) am.cancel();
     }
 
     private void hideSystemUI() {
