@@ -52,7 +52,7 @@
             android:exported="false"
             android:screenOrientation="unspecified"
             android:configChanges="orientation|screenSize|keyboardHidden|keyboard"
-            android:windowSoftInputMode="adjustResize"/>
+            android:windowSoftInputMode="adjustPan"/>
         <service
             android:name=".PichaFirebaseService"
             android:exported="false">

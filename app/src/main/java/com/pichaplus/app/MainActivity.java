@@ -180,6 +180,11 @@ public class MainActivity extends AppCompatActivity {
         }
 
         webView.addJavascriptInterface(new PichaJSBridge(), "PichaApp");
+        webView.addJavascriptInterface(new Object() {
+            @android.webkit.JavascriptInterface
+            public void want(boolean b) { pp_wantKb = b; }
+        }, "PPKb");
+        ppWatchAutofill();
 
         webView.setDownloadListener(new DownloadListener() {
             @Override
@@ -334,6 +339,43 @@ public class MainActivity extends AppCompatActivity {
 
         // Also intercept any navigation attempt when offline
         webView.setNetworkAvailable(isConnected());
+    }
+
+    private volatile boolean pp_wantKb = false;
+    private long pp_lostFocusAt = 0;
+
+    private void ppShowKb(long delay) {
+        if (webView == null) return;
+        webView.postDelayed(() -> {
+            if (!pp_wantKb) return;
+            webView.requestFocus();
+            android.view.inputmethod.InputMethodManager imm =
+                (android.view.inputmethod.InputMethodManager) getSystemService(INPUT_METHOD_SERVICE);
+            if (imm != null) imm.showSoftInput(webView, 0);
+        }, delay);
+    }
+
+    private void ppWatchAutofill() {
+        if (android.os.Build.VERSION.SDK_INT < 26) return;
+        android.view.autofill.AutofillManager am =
+            getSystemService(android.view.autofill.AutofillManager.class);
+        if (am == null) return;
+        am.registerCallback(new android.view.autofill.AutofillManager.AutofillCallback() {
+            private void h(int event) {
+                if (event == EVENT_INPUT_SHOWN || event == EVENT_INPUT_HIDDEN) {
+                    ppShowKb(60); ppShowKb(250); ppShowKb(600);
+                }
+            }
+            @Override public void onAutofillEvent(android.view.View v, int event) { h(event); }
+            @Override public void onAutofillEvent(android.view.View v, int virtualId, int event) { h(event); }
+        });
+    }
+
+    @Override
+    public void onWindowFocusChanged(boolean hasFocus) {
+        super.onWindowFocusChanged(hasFocus);
+        if (!hasFocus) { pp_lostFocusAt = System.currentTimeMillis(); return; }
+        if (pp_wantKb && System.currentTimeMillis() - pp_lostFocusAt < 1500) ppShowKb(50);
     }
 
     private void hideSystemUI() {
