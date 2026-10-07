@@ -392,9 +392,11 @@ public class MainActivity extends AppCompatActivity {
 
     private void ppApplyAutofill(boolean on) {
         if (android.os.Build.VERSION.SDK_INT < 26 || webView == null) return;
-        webView.setImportantForAutofill(on
+        int mode = on
             ? android.view.View.IMPORTANT_FOR_AUTOFILL_AUTO
-            : android.view.View.IMPORTANT_FOR_AUTOFILL_NO_EXCLUDE_DESCENDANTS);
+            : android.view.View.IMPORTANT_FOR_AUTOFILL_NO_EXCLUDE_DESCENDANTS;
+        getWindow().getDecorView().setImportantForAutofill(mode);
+        webView.setImportantForAutofill(mode);
         android.view.autofill.AutofillManager am =
             getSystemService(android.view.autofill.AutofillManager.class);
         if (am != null) am.cancel();
