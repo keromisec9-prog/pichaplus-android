@@ -27,6 +27,6 @@ public class SplashActivity extends Activity {
         new Handler().postDelayed(() -> {
             startActivity(new Intent(SplashActivity.this, MainActivity.class));
             finish();
-        }, 3500);
+        }, 5500);
     }
 }
