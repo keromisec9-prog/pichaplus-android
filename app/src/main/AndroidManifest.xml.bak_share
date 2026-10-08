@@ -17,10 +17,6 @@
 
     <queries>
         <intent>
-            <action android:name="android.intent.action.SEND"/>
-            <data android:mimeType="text/plain"/>
-        </intent>
-        <intent>
             <action android:name="android.intent.action.VIEW"/>
             <data android:scheme="https"/>
         </intent>
@@ -30,7 +26,7 @@
     </queries>
 
     <application
-        android:label="MyPicha+"
+        android:label="MyPichaPlus"
         android:icon="@mipmap/ic_launcher"
         android:banner="@drawable/tv_banner"
         android:theme="@style/Theme.PichaPlus">

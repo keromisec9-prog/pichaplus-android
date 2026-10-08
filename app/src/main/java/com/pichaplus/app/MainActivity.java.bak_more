@@ -97,19 +97,6 @@ public class MainActivity extends AppCompatActivity {
             return _shareCache;
         }
 
-        // Opens Android's own full share sheet (the "More" button).
-        @JavascriptInterface
-        public void shareMore(String text) {
-            runOnUiThread(() -> {
-                try {
-                    Intent i = new Intent(Intent.ACTION_SEND);
-                    i.setType("text/plain");
-                    i.putExtra(Intent.EXTRA_TEXT, text);
-                    startActivity(Intent.createChooser(i, null));
-                } catch (Exception e) { /* no chooser available */ }
-            });
-        }
-
         // Sends text straight to one specific app (no system chooser in between).
         @JavascriptInterface
         public boolean shareTo(String pkg, String cls, String text) {
@@ -272,7 +259,7 @@ public class MainActivity extends AppCompatActivity {
         webView.addJavascriptInterface(new Object() {
             @android.webkit.JavascriptInterface
             public boolean get() {
-                return getSharedPreferences("pp_prefs", MODE_PRIVATE).getBoolean("autofill", true);
+                return getSharedPreferences("pp_prefs", MODE_PRIVATE).getBoolean("autofill", false);
             }
             @android.webkit.JavascriptInterface
             public void set(boolean on) {
@@ -280,7 +267,7 @@ public class MainActivity extends AppCompatActivity {
                 runOnUiThread(() -> ppApplyAutofill(on));
             }
         }, "PPAutofill");
-        ppApplyAutofill(getSharedPreferences("pp_prefs", MODE_PRIVATE).getBoolean("autofill", true));
+        ppApplyAutofill(getSharedPreferences("pp_prefs", MODE_PRIVATE).getBoolean("autofill", false));
         webView.addJavascriptInterface(new Object() {
             @android.webkit.JavascriptInterface
             public void want(boolean b) { pp_wantKb = b; }
@@ -479,7 +466,7 @@ public class MainActivity extends AppCompatActivity {
         if (pp_wantKb && System.currentTimeMillis() - pp_lostFocusAt < 1500) ppShowKb(50);
     }
 
-    static volatile boolean ppAutofillOn = true;
+    static volatile boolean ppAutofillOn = false;
     private Boolean ppLastAutofill = null;
 
     static class PPWebView extends WebView {
@@ -513,7 +500,7 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
-        ppApplyAutofill(getSharedPreferences("pp_prefs", MODE_PRIVATE).getBoolean("autofill", true));
+        ppApplyAutofill(getSharedPreferences("pp_prefs", MODE_PRIVATE).getBoolean("autofill", false));
     }
 
     private void hideSystemUI() {
