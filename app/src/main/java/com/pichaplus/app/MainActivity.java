@@ -46,6 +46,72 @@ public class MainActivity extends AppCompatActivity {
 
     public class PichaJSBridge {
 
+        private String _shareCache = null;
+
+        // Apps that accept shared text, priority apps first. Returns JSON:
+        // [{"l":label,"p":package,"c":activityClass,"i":"data:image/png;base64,..."}]
+        @JavascriptInterface
+        public String getShareTargets() {
+            if (_shareCache != null) return _shareCache;
+            try {
+                PackageManager pm = getPackageManager();
+                Intent send = new Intent(Intent.ACTION_SEND);
+                send.setType("text/plain");
+                java.util.List<android.content.pm.ResolveInfo> list = pm.queryIntentActivities(send, 0);
+                final java.util.List<String> pri = java.util.Arrays.asList(
+                    "com.whatsapp", "com.whatsapp.w4b", "org.telegram.messenger",
+                    "com.facebook.lite", "com.facebook.orca", "com.facebook.katana",
+                    "com.snapchat.android", "com.instagram.android", "com.twitter.android",
+                    "com.google.android.apps.messaging", "com.google.android.gm");
+                java.util.Collections.sort(list, (a, b) -> {
+                    int ia = pri.indexOf(a.activityInfo.packageName);
+                    int ib = pri.indexOf(b.activityInfo.packageName);
+                    if (ia < 0) ia = 999;
+                    if (ib < 0) ib = 999;
+                    return ia - ib;
+                });
+                org.json.JSONArray out = new org.json.JSONArray();
+                java.util.HashSet<String> seen = new java.util.HashSet<>();
+                for (android.content.pm.ResolveInfo ri : list) {
+                    String pkg = ri.activityInfo.packageName;
+                    if (pkg.equals(getPackageName()) || !seen.add(pkg)) continue;
+                    android.graphics.drawable.Drawable d = ri.loadIcon(pm);
+                    android.graphics.Bitmap bmp = android.graphics.Bitmap.createBitmap(96, 96, android.graphics.Bitmap.Config.ARGB_8888);
+                    android.graphics.Canvas cv = new android.graphics.Canvas(bmp);
+                    d.setBounds(0, 0, 96, 96);
+                    d.draw(cv);
+                    java.io.ByteArrayOutputStream bos = new java.io.ByteArrayOutputStream();
+                    bmp.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, bos);
+                    org.json.JSONObject o = new org.json.JSONObject();
+                    o.put("l", String.valueOf(ri.loadLabel(pm)));
+                    o.put("p", pkg);
+                    o.put("c", ri.activityInfo.name);
+                    o.put("i", "data:image/png;base64," + android.util.Base64.encodeToString(bos.toByteArray(), android.util.Base64.NO_WRAP));
+                    out.put(o);
+                    if (out.length() >= 12) break;
+                }
+                _shareCache = out.toString();
+            } catch (Exception e) {
+                _shareCache = "[]";
+            }
+            return _shareCache;
+        }
+
+        // Sends text straight to one specific app (no system chooser in between).
+        @JavascriptInterface
+        public boolean shareTo(String pkg, String cls, String text) {
+            runOnUiThread(() -> {
+                try {
+                    Intent i = new Intent(Intent.ACTION_SEND);
+                    i.setType("text/plain");
+                    i.putExtra(Intent.EXTRA_TEXT, text);
+                    i.setClassName(pkg, cls);
+                    startActivity(i);
+                } catch (Exception e) { /* app gone or refused */ }
+            });
+            return true;
+        }
+
         @JavascriptInterface
         public String queueDownload(String url, String filename, String title, String poster) {
             return String.valueOf(PichaDownloads.queue(MainActivity.this, url, filename, title, poster));
