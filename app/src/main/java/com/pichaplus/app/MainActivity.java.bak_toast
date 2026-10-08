@@ -94,16 +94,6 @@ public class MainActivity extends AppCompatActivity {
         }
 
         @JavascriptInterface
-        public void exitApp() {
-            runOnUiThread(() -> finish());
-        }
-
-        @JavascriptInterface
-        public void toast(String msg) {
-            runOnUiThread(() -> android.widget.Toast.makeText(MainActivity.this, msg, android.widget.Toast.LENGTH_SHORT).show());
-        }
-
-        @JavascriptInterface
         public void showCastButton(boolean show) {
             runOnUiThread(() -> {
                 if (castButton != null) {
