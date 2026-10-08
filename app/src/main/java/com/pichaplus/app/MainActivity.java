@@ -97,6 +97,19 @@ public class MainActivity extends AppCompatActivity {
             return _shareCache;
         }
 
+        // Opens Android's own full share sheet (the "More" button).
+        @JavascriptInterface
+        public void shareMore(String text) {
+            runOnUiThread(() -> {
+                try {
+                    Intent i = new Intent(Intent.ACTION_SEND);
+                    i.setType("text/plain");
+                    i.putExtra(Intent.EXTRA_TEXT, text);
+                    startActivity(Intent.createChooser(i, null));
+                } catch (Exception e) { /* no chooser available */ }
+            });
+        }
+
         // Sends text straight to one specific app (no system chooser in between).
         @JavascriptInterface
         public boolean shareTo(String pkg, String cls, String text) {
