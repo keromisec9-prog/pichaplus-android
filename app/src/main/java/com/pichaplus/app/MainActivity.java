@@ -127,7 +127,7 @@ public class MainActivity extends AppCompatActivity {
 
         FrameLayout frame = new FrameLayout(this);
 
-        webView = new WebView(this);
+        webView = new PPWebView(this);
         webView.setLayoutParams(new FrameLayout.LayoutParams(
             FrameLayout.LayoutParams.MATCH_PARENT,
             FrameLayout.LayoutParams.MATCH_PARENT));
@@ -390,16 +390,41 @@ public class MainActivity extends AppCompatActivity {
         if (pp_wantKb && System.currentTimeMillis() - pp_lostFocusAt < 1500) ppShowKb(50);
     }
 
+    static volatile boolean ppAutofillOn = false;
+    private Boolean ppLastAutofill = null;
+
+    static class PPWebView extends WebView {
+        PPWebView(android.content.Context c) { super(c); }
+        @Override
+        public void onProvideAutofillVirtualStructure(android.view.ViewStructure structure, int flags) {
+            if (ppAutofillOn) super.onProvideAutofillVirtualStructure(structure, flags);
+        }
+        @Override
+        public void autofill(android.util.SparseArray<android.view.autofill.AutofillValue> values) {
+            if (ppAutofillOn) super.autofill(values);
+        }
+    }
+
     private void ppApplyAutofill(boolean on) {
+        ppAutofillOn = on;
         if (android.os.Build.VERSION.SDK_INT < 26 || webView == null) return;
         int mode = on
             ? android.view.View.IMPORTANT_FOR_AUTOFILL_AUTO
             : android.view.View.IMPORTANT_FOR_AUTOFILL_NO_EXCLUDE_DESCENDANTS;
         getWindow().getDecorView().setImportantForAutofill(mode);
         webView.setImportantForAutofill(mode);
-        android.view.autofill.AutofillManager am =
-            getSystemService(android.view.autofill.AutofillManager.class);
-        if (am != null) am.cancel();
+        if (ppLastAutofill == null || ppLastAutofill.booleanValue() != on) {
+            ppLastAutofill = on;
+            android.view.autofill.AutofillManager am =
+                getSystemService(android.view.autofill.AutofillManager.class);
+            if (am != null) am.cancel();
+        }
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        ppApplyAutofill(getSharedPreferences("pp_prefs", MODE_PRIVATE).getBoolean("autofill", false));
     }
 
     private void hideSystemUI() {
