@@ -19,6 +19,13 @@ jobs:
           unzip -q /tmp/gradle.zip -d /tmp/gradle
           export PATH=$PATH:/tmp/gradle/gradle-8.0/bin
           echo "/tmp/gradle/gradle-8.0/bin" >> $GITHUB_PATH
+      - name: Inject app proof secret
+        env:
+          APP_PROOF_SECRET: ${{ secrets.APP_PROOF_SECRET }}
+        run: |
+          test -n "$APP_PROOF_SECRET"
+          sed -i "s|__APP_PROOF_SECRET__|$APP_PROOF_SECRET|" app/src/main/java/com/pichaplus/app/PichaProof.java
+          ! grep -q "__APP_PROOF_SECRET__" app/src/main/java/com/pichaplus/app/PichaProof.java
       - name: Build APK
         run: gradle assembleRelease
       - name: Build AAB
