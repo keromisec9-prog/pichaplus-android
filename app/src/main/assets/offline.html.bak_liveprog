@@ -391,54 +391,5 @@ window.addEventListener('hashchange', function(){
 initIcons(); initBtn();
 if (FROMSITE) showDownloads();
 </script>
-<script id="pp-liveprog">
-(function(){
-  if(typeof render!=='function'||typeof sorted!=='function') return;
-  var _render=render, tmr=0, last={}, spd={};
-  function pctOf(x){ return x.bytes>0?Math.min(100,Math.round((x.got||0)/x.bytes*100)):0; }
-  render=function(){
-    _render();
-    var s=sorted(DATA), cs=document.querySelectorAll('#list .card');
-    for(var i=0;i<s.length&&i<cs.length;i++){
-      cs[i].setAttribute('data-id',s[i].id);
-      if(s[i].status==='running'){
-        var inf=cs[i].querySelector('.info');
-        if(inf&&!inf.querySelector('.dlw')){
-          var w=document.createElement('div'); w.className='wp dlw';
-          w.innerHTML='<div style="width:'+pctOf(s[i])+'%"></div>';
-          inf.appendChild(w);
-        }
-      }
-    }
-    clearInterval(tmr); tmr=0;
-    if(DATA.some(function(x){return x.status==='running';})) tmr=setInterval(tick,1000);
-  };
-  function tick(){
-    if($('dlView').style.display==='none'){ clearInterval(tmr); tmr=0; return; }
-    var arr; try { arr=JSON.parse(window.PichaApp.getProgress()); } catch(e){ return; }
-    var now=Date.now(), redo=false, by={};
-    arr.forEach(function(p){ by[p.id]=p; });
-    DATA.forEach(function(x){
-      if(x.status!=='running') return;
-      var p=by[x.id];
-      if(!p||p.status!=='running'){ redo=true; return; }
-      var l=last[x.id], inst=0;
-      if(l&&now>l.t) inst=(p.got-l.got)/((now-l.t)/1000);
-      last[x.id]={t:now,got:p.got};
-      spd[x.id]=spd[x.id]?spd[x.id]*0.6+inst*0.4:inst;
-      x.got=p.got; x.bytes=p.bytes;
-      var c=document.querySelector('#list .card[data-id="'+x.id+'"]'); if(!c) return;
-      var pc=pctOf(x), sp=spd[x.id], pr=parse(x.title);
-      var txt='Downloading\u2026 '+pc+'%';
-      if(sp>1024){ txt+=' \u00b7 '+(sp/1048576).toFixed(1)+' MB/s'; if(x.bytes>x.got) txt+=' \u00b7 '+fmtT((x.bytes-x.got)/sp*1000)+' left'; }
-      var ok=c.querySelector('.ok'); if(ok) ok.textContent=txt;
-      var cm=c.querySelector('.cm'); if(cm) cm.textContent=(pr.ep?'Episode '+pr.ep+' \u00b7 ':'')+fmt(sz(x));
-      var bar=c.querySelector('.dlw div'); if(bar) bar.style.width=pc+'%';
-    });
-    $('usedTxt').textContent=fmt(totalUsed())+' used'; $('usedTxt2').textContent=fmt(totalUsed())+' used';
-    if(redo) render();
-  }
-})();
-</script>
 </body>
 </html>

@@ -108,7 +108,7 @@ public class PichaDownloads {
             r.setAllowedOverMetered(true);
             r.setAllowedOverRoaming(true);
             if (wifiOnly(c)) r.setAllowedNetworkTypes(DownloadManager.Request.NETWORK_WIFI);
-            r.setDestinationInExternalFilesDir(c, Environment.DIRECTORY_DOWNLOADS,
+            r.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS,
                 "picha_" + System.currentTimeMillis() + ".mp4");
             DownloadManager dm = (DownloadManager) c.getSystemService(Context.DOWNLOAD_SERVICE);
             long id = dm.enqueue(r);
@@ -173,34 +173,6 @@ public class PichaDownloads {
                 out.put(j);
             }
             if (changed) save(c, keep);
-            return out.toString();
-        } catch (Exception e) { return "[]"; }
-    }
-
-    public static String progress(Context c) {
-        try {
-            DownloadManager dm = (DownloadManager) c.getSystemService(Context.DOWNLOAD_SERVICE);
-            JSONArray a = load(c);
-            JSONArray out = new JSONArray();
-            for (int i = 0; i < a.length(); i++) {
-                JSONObject o = a.optJSONObject(i);
-                if (o == null) continue;
-                long id = o.optLong("id");
-                Cursor cur = dm.query(new DownloadManager.Query().setFilterById(id));
-                if (cur == null) continue;
-                try {
-                    if (cur.moveToFirst()) {
-                        int st = cur.getInt(cur.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS));
-                        JSONObject j = new JSONObject();
-                        j.put("id", id);
-                        j.put("status", st == DownloadManager.STATUS_SUCCESSFUL ? "done"
-                            : st == DownloadManager.STATUS_FAILED ? "failed" : "running");
-                        j.put("bytes", cur.getLong(cur.getColumnIndexOrThrow(DownloadManager.COLUMN_TOTAL_SIZE_BYTES)));
-                        j.put("got", cur.getLong(cur.getColumnIndexOrThrow(DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR)));
-                        out.put(j);
-                    }
-                } finally { cur.close(); }
-            }
             return out.toString();
         } catch (Exception e) { return "[]"; }
     }

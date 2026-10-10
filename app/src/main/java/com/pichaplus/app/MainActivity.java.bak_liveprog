@@ -151,11 +151,6 @@ public class MainActivity extends AppCompatActivity {
         }
 
         @JavascriptInterface
-        public String getProgress() {
-            return PichaDownloads.progress(MainActivity.this);
-        }
-
-        @JavascriptInterface
         public boolean playDownload(long id) {
             return PichaDownloads.play(MainActivity.this, id);
         }
