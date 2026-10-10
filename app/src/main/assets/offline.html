@@ -440,5 +440,36 @@ if (FROMSITE) showDownloads();
   }
 })();
 </script>
+<script id="pp-pauseui">
+(function(){
+  if(typeof render!=='function'||typeof sorted!=='function') return;
+  var _r=render;
+  var PAUSE='<svg viewBox="0 0 24 24"><path d="M6 5h4v14H6zM14 5h4v14h-4z"/></svg>';
+  function act(x){
+    try { if(x.status==='running') window.PichaApp.pauseDownload(x.id); else window.PichaApp.resumeDownload(x.id); } catch(e){}
+    setTimeout(render,400);
+  }
+  render=function(){
+    _r();
+    if(selecting) return;
+    var s=sorted(DATA), cs=document.querySelectorAll('#list .card');
+    for(var i=0;i<s.length&&i<cs.length;i++){ (function(x,c){
+      if(x.status==='done') return;
+      var pc=x.bytes>0?Math.min(100,Math.round((x.got||0)/x.bytes*100)):0;
+      var inf=c.querySelector('.info');
+      if(x.status==='paused'){
+        var ok=c.querySelector('.ok'); if(ok) ok.textContent='Paused \u00b7 '+pc+'%'+(x.err?' \u00b7 '+x.err:'');
+        if(inf&&!inf.querySelector('.dlw')){ var w=document.createElement('div'); w.className='wp dlw'; w.innerHTML='<div style="width:'+pc+'%"></div>'; inf.appendChild(w); }
+      }
+      if(!c.querySelector('.pbt')&&window.PichaApp&&window.PichaApp.pauseDownload){
+        var b=document.createElement('button'); b.className='go pbt';
+        b.innerHTML=x.status==='running'?PAUSE:svg('play');
+        b.onclick=function(ev){ ev.stopPropagation(); act(x); };
+        c.insertBefore(b,c.querySelector('.more'));
+      }
+    })(s[i],cs[i]); }
+  };
+})();
+</script>
 </body>
 </html>

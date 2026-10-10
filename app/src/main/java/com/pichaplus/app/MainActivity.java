@@ -156,6 +156,16 @@ public class MainActivity extends AppCompatActivity {
         }
 
         @JavascriptInterface
+        public void pauseDownload(long id) {
+            PichaEngine.pause(MainActivity.this, id);
+        }
+
+        @JavascriptInterface
+        public void resumeDownload(long id) {
+            PichaEngine.resume(MainActivity.this, id);
+        }
+
+        @JavascriptInterface
         public boolean playDownload(long id) {
             return PichaDownloads.play(MainActivity.this, id);
         }

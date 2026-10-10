@@ -26,13 +26,13 @@ public class PichaDownloads {
     private static final String PREFS = "picha_downloads";
     private static final String KEY = "list";
 
-    private static synchronized JSONArray load(Context c) {
+    static synchronized JSONArray load(Context c) {
         try {
             return new JSONArray(c.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(KEY, "[]"));
         } catch (Exception e) { return new JSONArray(); }
     }
 
-    private static synchronized void save(Context c, JSONArray a) {
+    static synchronized void save(Context c, JSONArray a) {
         c.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString(KEY, a.toString()).apply();
     }
 
@@ -100,6 +100,28 @@ public class PichaDownloads {
     public static long queue(Context c, String url, String filename, String title, String posterUrl) {
         try {
             if (title == null) title = "";
+            long id = PichaEngine.newId();
+            JSONObject o = new JSONObject();
+            o.put("id", id);
+            o.put("title", title);
+            o.put("ts", id);
+            o.put("own", true);
+            o.put("url", url);
+            o.put("total", 0);
+            synchronized (PichaDownloads.class) {
+                JSONArray a = load(c);
+                a.put(o);
+                save(c, a);
+            }
+            cachePoster(c, id, posterUrl);
+            PichaEngine.start(c, id, true);
+            return id;
+        } catch (Exception e) { return -1; }
+    }
+
+    public static long queueLegacy(Context c, String url, String filename, String title, String posterUrl) {
+        try {
+            if (title == null) title = "";
             DownloadManager.Request r = new DownloadManager.Request(Uri.parse(url));
             r.setMimeType("video/mp4");
             r.setTitle(title.isEmpty() ? "Picha+" : title);
@@ -136,6 +158,13 @@ public class PichaDownloads {
                 JSONObject o = a.optJSONObject(i);
                 if (o == null) continue;
                 long id = o.optLong("id");
+                if (o.optBoolean("own")) {
+                    JSONObject oj = ownJson(c, o, pp);
+                    if ("gone".equals(oj.optString("status"))) { posterFile(c, id).delete(); changed = true; continue; }
+                    keep.put(o);
+                    out.put(oj);
+                    continue;
+                }
                 String status = "gone";
                 long bytes = 0;
                 long got = 0;
@@ -187,6 +216,13 @@ public class PichaDownloads {
                 if (o == null) continue;
                 long id = o.optLong("id");
                 Cursor cur = dm.query(new DownloadManager.Query().setFilterById(id));
+                if (o.optBoolean("own")) {
+                    if (cur != null) cur.close();
+                    JSONObject pj = new JSONObject();
+                    ownCore(c, o, pj);
+                    out.put(pj);
+                    continue;
+                }
                 if (cur == null) continue;
                 try {
                     if (cur.moveToFirst()) {
@@ -205,11 +241,61 @@ public class PichaDownloads {
         } catch (Exception e) { return "[]"; }
     }
 
+    private static boolean isOwn(Context c, long id) {
+        JSONArray a = load(c);
+        for (int i = 0; i < a.length(); i++) {
+            JSONObject o = a.optJSONObject(i);
+            if (o != null && o.optLong("id") == id) return o.optBoolean("own");
+        }
+        return false;
+    }
+
+    private static void ownCore(Context c, JSONObject o, JSONObject j) throws Exception {
+        long id = o.optLong("id");
+        long total = o.optLong("total");
+        long got;
+        String st;
+        long[] lv = PichaEngine.LIVE.get(id);
+        if (o.optBoolean("done")) {
+            File f = PichaEngine.fin(c, id);
+            got = f.length();
+            st = f.exists() ? "done" : "gone";
+            if (total <= 0) total = got;
+        } else if (lv != null) {
+            st = "running";
+            got = lv[0];
+            if (lv[1] > 0) total = lv[1];
+        } else {
+            st = "paused";
+            got = PichaEngine.part(c, id).length();
+        }
+        j.put("id", id);
+        j.put("status", st);
+        j.put("bytes", total);
+        j.put("got", got);
+    }
+
+    private static JSONObject ownJson(Context c, JSONObject o, SharedPreferences pp) throws Exception {
+        long id = o.optLong("id");
+        JSONObject j = new JSONObject();
+        ownCore(c, o, j);
+        j.put("title", o.optString("title"));
+        j.put("err", o.optString("err"));
+        j.put("ts", o.optLong("ts"));
+        j.put("pos", pp.getInt("pos_" + id, 0));
+        j.put("dur", pp.getInt("dur_" + id, 0));
+        j.put("seen", pp.getLong("seen_" + id, 0));
+        j.put("watched", pp.getBoolean("watched_" + id, false));
+        j.put("poster", posterData(c, id));
+        return j;
+    }
+
     public static boolean play(Context c, long id) {
         try {
             DownloadManager dm = (DownloadManager) c.getSystemService(Context.DOWNLOAD_SERVICE);
-            if (!fileOk(dm, id)) return false;
-            Uri u = dm.getUriForDownloadedFile(id);
+            boolean own = isOwn(c, id);
+            if (own ? !PichaEngine.fin(c, id).exists() : !fileOk(dm, id)) return false;
+            Uri u = own ? Uri.fromFile(PichaEngine.fin(c, id)) : dm.getUriForDownloadedFile(id);
             if (u == null) return false;
             String title = "";
             JSONArray a = load(c);
@@ -228,7 +314,7 @@ public class PichaDownloads {
                     JSONObject o = a.optJSONObject(i);
                     if (o != null && want.equals(o.optString("title"))) {
                         long nid = o.optLong("id");
-                        if (fileOk(dm, nid)) {
+                        if (isOwn(c, nid) ? PichaEngine.fin(c, nid).exists() : fileOk(dm, nid)) {
                             it.putExtra("nextId", nid);
                             it.putExtra("nextTitle", want);
                             File pf = posterFile(c, nid);
@@ -243,6 +329,7 @@ public class PichaDownloads {
     }
 
     public static void remove(Context c, long id) {
+        PichaEngine.cancel(c, id);
         try {
             DownloadManager dm = (DownloadManager) c.getSystemService(Context.DOWNLOAD_SERVICE);
             dm.remove(id);

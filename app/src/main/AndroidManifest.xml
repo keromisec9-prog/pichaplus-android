@@ -5,6 +5,8 @@
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28"/>
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32"/>
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC"/>
     <!-- Declare TV support: leanback UI is used but not strictly required,
          so this same APK can still install on phones/tablets. -->
     <uses-feature
@@ -67,5 +69,6 @@
         <meta-data
             android:name="com.google.android.gms.cast.framework.OPTIONS_PROVIDER_CLASS_NAME"
             android:value="com.pichaplus.app.CastOptionsProvider"/>
+        <service android:name="com.pichaplus.app.PichaDownloadService" android:exported="false" android:foregroundServiceType="dataSync"/>
     </application>
 </manifest>
