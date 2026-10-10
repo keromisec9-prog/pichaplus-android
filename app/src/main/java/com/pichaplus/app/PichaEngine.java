@@ -126,7 +126,7 @@ class PichaEngine {
             if (e == null) return 1;
             File p = part(c, id);
             long have = p.length();
-            con = (HttpURLConnection) new URL(PichaProof.withProof(e.optString("url"))).openConnection();
+            con = (HttpURLConnection) new URL(e.optString("url")).openConnection();
             con.setConnectTimeout(15000);
             con.setReadTimeout(20000);
             con.setRequestProperty("Accept-Encoding", "identity");
