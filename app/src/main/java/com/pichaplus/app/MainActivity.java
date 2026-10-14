@@ -546,6 +546,9 @@ public class MainActivity extends AppCompatActivity {
             android.view.View.SYSTEM_UI_FLAG_LAYOUT_STABLE);
     }
 
+    private long ppLastBack = 0;
+    private android.widget.Toast ppBackToast;
+
     @Override
     public void onBackPressed() {
         if (customView != null) {
@@ -553,7 +556,15 @@ public class MainActivity extends AppCompatActivity {
         } else if (webView.canGoBack()) {
             webView.goBack();
         } else {
-            super.onBackPressed();
+            long now = System.currentTimeMillis();
+            if (now - ppLastBack < 2000) {
+                if (ppBackToast != null) ppBackToast.cancel();
+                super.onBackPressed();
+            } else {
+                ppLastBack = now;
+                ppBackToast = android.widget.Toast.makeText(this, "Press again to exit", android.widget.Toast.LENGTH_SHORT);
+                ppBackToast.show();
+            }
         }
     }
 }
