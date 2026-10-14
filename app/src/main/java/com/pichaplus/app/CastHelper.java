@@ -141,17 +141,23 @@ public class CastHelper {
     }
 
     private void onTap() {
+        if (activeControl != null) {
+            openSheet("Casting to TV", "");
+            if (!mediaUrl.isEmpty()) {
+                sheetList.addView(sheetBtn("Cast to another TV", false, () -> startSearch()));
+            }
+            sheetList.addView(sheetBtn("Stop casting", true, () -> {
+                closeSheet();
+                stopCasting();
+                Toast.makeText(act, "Stopped casting", Toast.LENGTH_SHORT).show();
+            }));
+            return;
+        }
         if (mediaUrl.isEmpty()) {
             Toast.makeText(act, "Start a movie first, then tap here to cast it to your TV", Toast.LENGTH_LONG).show();
             return;
         }
-        if (activeControl != null) {
-            openSheet("Casting to TV", "");
-            sheetList.addView(sheetBtn("Cast to another TV", false, () -> startSearch()));
-            sheetList.addView(sheetBtn("Stop casting", true, () -> { closeSheet(); stopCasting(); }));
-        } else {
-            startSearch();
-        }
+        startSearch();
     }
 
     private void startSearch() {
