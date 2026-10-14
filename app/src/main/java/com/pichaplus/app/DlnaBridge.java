@@ -34,6 +34,11 @@ public class DlnaBridge {
     private final ExecutorService pool = Executors.newCachedThreadPool();
     private final Map<String, String[]> devices = new ConcurrentHashMap<>();
     private volatile String currentControl;
+    public interface Listener {
+        void devices(java.util.List<String[]> list);
+        void result(boolean ok, String msg);
+    }
+    public volatile Listener listener;
 
     public DlnaBridge(Context ctx, WebView web) {
         this.ctx = ctx;
@@ -46,6 +51,8 @@ public class DlnaBridge {
 
     private void result(boolean ok, String msg) {
         js("window.onDlnaResult&&window.onDlnaResult(" + ok + "," + JSONObject.quote(msg) + ")");
+        final Listener L2 = listener;
+        if (L2 != null) ui.post(() -> L2.result(ok, msg));
     }
 
     private static String esc(String s) {
@@ -116,6 +123,12 @@ public class DlnaBridge {
                 }
             }
             js("window.onDlnaDevices&&window.onDlnaDevices(" + out.toString() + ")");
+            final Listener L1 = listener;
+            if (L1 != null) {
+                final java.util.List<String[]> dl = new java.util.ArrayList<>();
+                for (Map.Entry<String, String[]> en : devices.entrySet()) dl.add(new String[]{en.getKey(), en.getValue()[0]});
+                ui.post(() -> L1.devices(dl));
+            }
         });
     }
 
