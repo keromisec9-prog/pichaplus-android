@@ -39,7 +39,9 @@ public class CastHelper {
     private volatile String mediaUrl = "";
     private volatile String mediaTitle = "";
     private volatile String activeControl;
-    private android.app.Dialog sheet;\n    private android.widget.LinearLayout sheetList;\n    private android.widget.TextView sheetStatus;
+    private android.app.Dialog sheet;
+    private android.widget.LinearLayout sheetList;
+    private android.widget.TextView sheetStatus;
 
     public CastHelper(Activity a, WebView w) {
         act = a;
