@@ -284,6 +284,9 @@ public class MainActivity extends AppCompatActivity {
         }
 
         webView.addJavascriptInterface(new PichaJSBridge(), "PichaApp");
+        CastHelper dlnaCast = new CastHelper(this, webView);
+        webView.addJavascriptInterface(dlnaCast, "PichaChromecast");
+        if (castButton != null) dlnaCast.attach(castButton);
         webView.addJavascriptInterface(new Object() {
             @android.webkit.JavascriptInterface
             public boolean get() {
