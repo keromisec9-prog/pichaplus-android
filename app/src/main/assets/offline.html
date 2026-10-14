@@ -471,5 +471,113 @@ if (FROMSITE) showDownloads();
   };
 })();
 </script>
+<script id="pp-backstack">
+(function(){
+try{
+  var ST=[],Q=[],busy=false,tmo=null,curP=null,lastBack=null,restoring=false;
+  function $(id){return document.getElementById(id);}
+  function sheetOpen(){var w=$("sheetWrap");return !!w&&w.style.display==="flex";}
+  function askOpen(){var w=$("askWrap");return !!w&&w.style.display==="flex";}
+  function dlOpen(){var w=$("dlView");return !!w&&w.style.display==="block";}
+  function selOn(){return typeof selecting!=="undefined"?!!selecting:true;}
+  function selNow(){return typeof selecting!=="undefined"&&!!selecting;}
+  function fromSite(){return typeof FROMSITE!=="undefined"&&!!FROMSITE;}
+  function run(){
+    if(busy)return;
+    var op=Q.shift();
+    if(!op)return;
+    if(op.push){
+      try{history.pushState({ppo:1},"",location.href);}catch(e){}
+      run();return;
+    }
+    busy=true;
+    tmo=setTimeout(function(){busy=false;run();},800);
+    try{history.go(op.go);}catch(e){busy=false;clearTimeout(tmo);run();}
+  }
+  function qgo(n){if(n>0){Q.push({go:-n});run();}}
+  function push(o){ST.push(o);Q.push({push:1});run();}
+  function alive(o){
+    if(o.kind==="sheet"||o.kind==="panel")return sheetOpen();
+    if(o.kind==="ask")return askOpen();
+    if(o.kind==="select")return selOn();
+    if(o.kind==="dl")return dlOpen();
+    return true;
+  }
+  function sweep(){
+    var n=0;
+    while(ST.length&&!alive(ST[ST.length-1])){ST.pop();n++;}
+    qgo(n);
+  }
+  window.addEventListener("popstate",function(){
+    if(busy){busy=false;clearTimeout(tmo);run();return;}
+    var o=ST.pop();
+    if(!o)return;
+    try{o.close();}catch(e){}
+    sweep();
+  });
+  function wrap(name,fn){var o=window[name];if(typeof o==="function")window[name]=fn(o);}
+  var rawClose=window.closeSheet,rawCancel=window.selCancel,rawHide=window.hideDownloads;
+
+  wrap("openSheet",function(o){return function(){
+    var was=sheetOpen();
+    var r=o.apply(this,arguments);
+    if(!was)push({kind:"sheet",close:function(){rawClose();curP=null;}});
+    return r;};});
+  wrap("closeSheet",function(o){return function(){
+    var r=o.apply(this,arguments);curP=null;sweep();return r;};});
+
+  ["manageMenu","storagePanel","activityPanel","cleanupPanel","episodes","cardMenu"].forEach(function(nm){
+    wrap(nm,function(o){return function(){
+      var me={nm:nm,args:[].slice.call(arguments)};
+      if(!restoring&&sheetOpen()&&curP&&curP.nm!==nm){
+        var prev=curP;
+        push({kind:"panel",close:function(){
+          restoring=true;
+          try{window[prev.nm].apply(window,prev.args);}finally{restoring=false;}
+        }});
+      }
+      curP=me;
+      return o.apply(this,arguments);
+    };});
+  });
+
+  wrap("sheetHead",function(o){return function(t,s,back){
+    if(back){lastBack=back;return o.call(this,t,s,"ppBack()");}
+    return o.apply(this,arguments);};});
+  window.ppBack=function(){
+    var top=ST[ST.length-1];
+    if(top&&top.kind==="panel"){ST.pop();qgo(1);try{top.close();}catch(e){}}
+    else if(lastBack){try{(new Function(lastBack))();}catch(e){}}
+  };
+
+  wrap("ask",function(o){return function(){
+    var was=askOpen();
+    var r=o.apply(this,arguments);
+    if(!was)push({kind:"ask",close:function(){var w=$("askWrap");if(w)w.style.display="none";}});
+    return r;};});
+  wrap("askClose",function(o){return function(){
+    var r=o.apply(this,arguments);sweep();return r;};});
+
+  wrap("startSelect",function(o){return function(){
+    var r=o.apply(this,arguments);
+    if(selNow()&&!ST.some(function(e){return e.kind==="select";}))
+      push({kind:"select",close:function(){rawCancel();}});
+    return r;};});
+  wrap("selCancel",function(o){return function(){
+    var r=o.apply(this,arguments);sweep();return r;};});
+  wrap("render",function(o){return function(){
+    var r=o.apply(this,arguments);sweep();return r;};});
+
+  wrap("showDownloads",function(o){return function(){
+    var was=dlOpen();
+    var r=o.apply(this,arguments);
+    if(!was&&!fromSite()&&dlOpen())push({kind:"dl",close:function(){rawHide();}});
+    return r;};});
+  wrap("hideDownloads",function(o){return function(){
+    var r=o.apply(this,arguments);sweep();return r;};});
+}catch(e){}
+})();
+</script>
+
 </body>
 </html>
