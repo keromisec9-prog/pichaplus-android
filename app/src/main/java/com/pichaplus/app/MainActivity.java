@@ -32,7 +32,6 @@ public class MainActivity extends AppCompatActivity {
     private WebView webView;
     private CastContext castContext;
     private MediaRouteButton castButton;
-    private CastHelper castHelper;
     private FrameLayout fullscreenContainer;
     private android.view.View customView;
     private WebChromeClient.CustomViewCallback customViewCallback;
@@ -202,7 +201,6 @@ public class MainActivity extends AppCompatActivity {
         public void showCastButton(boolean show) {
             runOnUiThread(() -> {
                 if (castButton != null) {
-                    if (castHelper != null) castHelper.attach(castButton);
                     castButton.setVisibility(show ? android.view.View.VISIBLE : android.view.View.GONE);
                 }
             });
@@ -286,10 +284,6 @@ public class MainActivity extends AppCompatActivity {
         }
 
         webView.addJavascriptInterface(new PichaJSBridge(), "PichaApp");
-        webView.addJavascriptInterface(new DlnaBridge(this, webView), "PichaDlna");
-        castHelper = new CastHelper(this, webView, castContext);
-        webView.addJavascriptInterface(castHelper, "PichaChromecast");
-        if (castButton != null) castHelper.attach(castButton);
         webView.addJavascriptInterface(new Object() {
             @android.webkit.JavascriptInterface
             public boolean get() {
