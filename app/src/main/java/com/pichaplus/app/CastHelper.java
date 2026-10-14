@@ -39,7 +39,7 @@ public class CastHelper {
     private volatile String mediaUrl = "";
     private volatile String mediaTitle = "";
     private volatile String activeControl;
-    private AlertDialog searching;
+    private android.app.Dialog sheet;\n    private android.widget.LinearLayout sheetList;\n    private android.widget.TextView sheetStatus;
 
     public CastHelper(Activity a, WebView w) {
         act = a;
@@ -60,51 +60,117 @@ public class CastHelper {
         });
     }
 
+    private int dp(int v) {
+        return (int) (v * act.getResources().getDisplayMetrics().density);
+    }
+
+    private void closeSheet() {
+        android.app.Dialog d = sheet;
+        sheet = null;
+        if (d != null) { try { d.dismiss(); } catch (Exception ignore) {} }
+    }
+
+    private void openSheet(String title, String status) {
+        closeSheet();
+        android.widget.LinearLayout box = new android.widget.LinearLayout(act);
+        box.setOrientation(android.widget.LinearLayout.VERTICAL);
+        box.setPadding(dp(20), dp(20), dp(20), dp(28));
+        android.graphics.drawable.GradientDrawable bg = new android.graphics.drawable.GradientDrawable();
+        bg.setColor(0xFF1A1A1A);
+        float r = dp(16);
+        bg.setCornerRadii(new float[]{r, r, r, r, 0, 0, 0, 0});
+        box.setBackground(bg);
+
+        android.widget.TextView t = new android.widget.TextView(act);
+        t.setText(title);
+        t.setTextColor(0xFFFFFFFF);
+        t.setTextSize(17);
+        t.setTypeface(null, android.graphics.Typeface.BOLD);
+        box.addView(t);
+
+        sheetStatus = new android.widget.TextView(act);
+        sheetStatus.setText(status);
+        sheetStatus.setTextColor(0xFFAAAAAA);
+        sheetStatus.setTextSize(13);
+        sheetStatus.setPadding(0, dp(8), 0, 0);
+        box.addView(sheetStatus);
+
+        sheetList = new android.widget.LinearLayout(act);
+        sheetList.setOrientation(android.widget.LinearLayout.VERTICAL);
+        box.addView(sheetList);
+
+        final android.app.Dialog d = new android.app.Dialog(act, android.R.style.Theme_Translucent_NoTitleBar);
+        d.setContentView(box);
+        d.setCanceledOnTouchOutside(true);
+        android.view.Window w = d.getWindow();
+        if (w != null) {
+            w.setLayout(android.view.ViewGroup.LayoutParams.MATCH_PARENT, android.view.ViewGroup.LayoutParams.WRAP_CONTENT);
+            w.setGravity(android.view.Gravity.BOTTOM);
+            w.addFlags(android.view.WindowManager.LayoutParams.FLAG_DIM_BEHIND);
+            w.setDimAmount(0.6f);
+        }
+        d.setOnDismissListener(x -> { if (sheet == d) sheet = null; });
+        sheet = d;
+        d.show();
+    }
+
+    private android.view.View sheetBtn(String text, boolean outline, final Runnable action) {
+        android.widget.TextView t = new android.widget.TextView(act);
+        t.setText(text);
+        t.setTextColor(outline ? 0xFFCCCCCC : 0xFFFFFFFF);
+        t.setTextSize(outline ? 14 : 15);
+        t.setPadding(dp(16), dp(14), dp(16), dp(14));
+        android.graphics.drawable.GradientDrawable g = new android.graphics.drawable.GradientDrawable();
+        g.setCornerRadius(dp(10));
+        if (outline) {
+            g.setColor(0x00000000);
+            g.setStroke(dp(1), 0xFF444444);
+        } else {
+            g.setColor(0xFF2A2A2A);
+        }
+        t.setBackground(g);
+        android.widget.LinearLayout.LayoutParams lp = new android.widget.LinearLayout.LayoutParams(
+            outline ? android.view.ViewGroup.LayoutParams.WRAP_CONTENT : android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+            android.view.ViewGroup.LayoutParams.WRAP_CONTENT);
+        lp.topMargin = dp(10);
+        t.setLayoutParams(lp);
+        t.setOnClickListener(v -> action.run());
+        return t;
+    }
+
     private void onTap() {
         if (mediaUrl.isEmpty()) {
             Toast.makeText(act, "Start a movie first, then tap here to cast it to your TV", Toast.LENGTH_LONG).show();
             return;
         }
         if (activeControl != null) {
-            new AlertDialog.Builder(act, THEME)
-                .setTitle("Casting to TV")
-                .setItems(new String[]{"Cast to another TV", "Stop casting"}, (d, which) -> {
-                    if (which == 0) startSearch(); else stopCasting();
-                })
-                .show();
+            openSheet("Casting to TV", "");
+            sheetList.addView(sheetBtn("Cast to another TV", false, () -> startSearch()));
+            sheetList.addView(sheetBtn("Stop casting", true, () -> { closeSheet(); stopCasting(); }));
         } else {
             startSearch();
         }
     }
 
     private void startSearch() {
-        searching = new AlertDialog.Builder(act, THEME)
-            .setTitle("Cast to TV")
-            .setMessage("Searching for TVs...")
-            .setNegativeButton("Cancel", (d, w) -> searching = null)
-            .setOnCancelListener(d -> searching = null)
-            .show();
+        openSheet("Cast to TV", "Searching for TVs...");
         discover();
     }
 
     private void showDevices(final List<String[]> list) {
-        if (searching == null) return;
-        try { searching.dismiss(); } catch (Exception ignore) {}
-        searching = null;
+        if (sheet == null) return;
+        sheetList.removeAllViews();
         if (list.isEmpty()) {
-            new AlertDialog.Builder(act, THEME)
-                .setTitle("No TVs found")
-                .setMessage("Make sure your phone and TV are on the same Wi-Fi and the TV's media streaming (DLNA) is turned on.")
-                .setPositiveButton("OK", null)
-                .show();
+            sheetStatus.setText("No TVs found. Check that the phone and TV are on the same Wi-Fi and that media streaming (DLNA) is on.");
             return;
         }
-        final String[] names = new String[list.size()];
-        for (int i = 0; i < names.length; i++) names[i] = list.get(i)[0];
-        new AlertDialog.Builder(act, THEME)
-            .setTitle("Choose your TV")
-            .setItems(names, (d, which) -> play(list.get(which)))
-            .show();
+        sheetStatus.setText("Tap your TV");
+        for (final String[] d : list) {
+            sheetList.addView(sheetBtn(d[0], false, () -> { closeSheet(); play(d); }));
+        }
+        if (activeControl != null) {
+            sheetList.addView(sheetBtn("Stop casting", true, () -> { closeSheet(); stopCasting(); }));
+        }
     }
 
     private void pausePhone() {
