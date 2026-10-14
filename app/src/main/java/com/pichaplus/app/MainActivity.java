@@ -284,6 +284,7 @@ public class MainActivity extends AppCompatActivity {
         }
 
         webView.addJavascriptInterface(new PichaJSBridge(), "PichaApp");
+        webView.addJavascriptInterface(new DlnaBridge(this, webView), "PichaDlna");
         webView.addJavascriptInterface(new Object() {
             @android.webkit.JavascriptInterface
             public boolean get() {
