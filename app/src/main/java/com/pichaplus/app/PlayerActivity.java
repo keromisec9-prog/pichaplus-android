@@ -89,6 +89,219 @@ public class PlayerActivity extends Activity {
         }
     };
 
+    // ---- swipe gestures: left half = brightness, right half = volume up to 200% ----
+    private android.media.audiofx.LoudnessEnhancer ppBoost;
+    private float ppVolLevel = -1f, ppStart, ppDownX, ppDownY;
+    private int ppMode = 0;
+    private boolean ppActive = false, ppDecided = false;
+    private LinearLayout ppHud;
+    private PpHudIcon ppIcon;
+    private View ppFill;
+    private GradientDrawable ppFillBg;
+    private TextView ppPct;
+    private final Runnable ppHudHider = new Runnable() {
+        @Override public void run() { if (ppHud != null) ppHud.setVisibility(View.GONE); }
+    };
+
+    private static class PpHudIcon extends View {
+        private int kind = 0;
+        private float lvl = 0f;
+        private final android.graphics.Paint fill = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+        private final android.graphics.Paint line = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+        PpHudIcon(android.content.Context c) {
+            super(c);
+            fill.setColor(Color.WHITE);
+            fill.setStyle(android.graphics.Paint.Style.FILL);
+            line.setColor(Color.WHITE);
+            line.setStyle(android.graphics.Paint.Style.STROKE);
+            line.setStrokeCap(android.graphics.Paint.Cap.ROUND);
+        }
+        void set(int k, float l) { kind = k; lvl = l; invalidate(); }
+        @Override protected void onDraw(android.graphics.Canvas cv) {
+            float w = getWidth(), h = getHeight();
+            line.setStrokeWidth(w * 0.09f);
+            if (kind == 0) {
+                cv.drawCircle(w / 2f, h / 2f, w * 0.18f, fill);
+                for (int i = 0; i < 8; i++) {
+                    double a = Math.PI / 4 * i;
+                    cv.drawLine((float) (w / 2f + Math.cos(a) * w * 0.30f), (float) (h / 2f + Math.sin(a) * h * 0.30f),
+                                (float) (w / 2f + Math.cos(a) * w * 0.44f), (float) (h / 2f + Math.sin(a) * h * 0.44f), line);
+                }
+                return;
+            }
+            android.graphics.Path sp = new android.graphics.Path();
+            sp.moveTo(w * 0.08f, h * 0.38f);
+            sp.lineTo(w * 0.26f, h * 0.38f);
+            sp.lineTo(w * 0.46f, h * 0.20f);
+            sp.lineTo(w * 0.46f, h * 0.80f);
+            sp.lineTo(w * 0.26f, h * 0.62f);
+            sp.lineTo(w * 0.08f, h * 0.62f);
+            sp.close();
+            cv.drawPath(sp, fill);
+            if (kind == 2) {
+                cv.drawLine(w * 0.62f, h * 0.36f, w * 0.90f, h * 0.64f, line);
+                cv.drawLine(w * 0.90f, h * 0.36f, w * 0.62f, h * 0.64f, line);
+                return;
+            }
+            cv.drawArc(new android.graphics.RectF(w * 0.34f, h * 0.30f, w * 0.70f, h * 0.70f), -45, 90, false, line);
+            if (lvl > 0.5f) cv.drawArc(new android.graphics.RectF(w * 0.26f, h * 0.16f, w * 0.90f, h * 0.84f), -45, 90, false, line);
+        }
+    }
+
+    private void ppBuildHud(FrameLayout root) {
+        LinearLayout hud = new LinearLayout(this);
+        hud.setOrientation(LinearLayout.HORIZONTAL);
+        hud.setGravity(Gravity.CENTER_VERTICAL);
+        GradientDrawable bg = new GradientDrawable();
+        bg.setCornerRadius(dp(14));
+        bg.setColor(0xDD222222);
+        hud.setBackground(bg);
+        hud.setPadding(dp(16), dp(10), dp(16), dp(10));
+        hud.setVisibility(View.GONE);
+        ppIcon = new PpHudIcon(this);
+        hud.addView(ppIcon, new LinearLayout.LayoutParams(dp(26), dp(26)));
+        FrameLayout track = new FrameLayout(this);
+        GradientDrawable tb = new GradientDrawable();
+        tb.setCornerRadius(dp(4));
+        tb.setColor(0x33FFFFFF);
+        track.setBackground(tb);
+        ppFill = new View(this);
+        ppFillBg = new GradientDrawable();
+        ppFillBg.setCornerRadius(dp(4));
+        ppFillBg.setColor(Color.WHITE);
+        ppFill.setBackground(ppFillBg);
+        track.addView(ppFill, new FrameLayout.LayoutParams(0, MATCH));
+        LinearLayout.LayoutParams tl = new LinearLayout.LayoutParams(dp(150), dp(8));
+        tl.leftMargin = dp(12);
+        hud.addView(track, tl);
+        ppPct = text("0%", 13, Color.WHITE, true);
+        ppPct.setGravity(Gravity.END);
+        LinearLayout.LayoutParams pl = new LinearLayout.LayoutParams(dp(48), WRAP);
+        pl.leftMargin = dp(10);
+        hud.addView(ppPct, pl);
+        FrameLayout.LayoutParams hl = new FrameLayout.LayoutParams(WRAP, WRAP, Gravity.TOP | Gravity.CENTER_HORIZONTAL);
+        hl.topMargin = dp(20);
+        root.addView(hud, hl);
+        ppHud = hud;
+    }
+
+    private void ppShowHud(int mode, float level) {
+        if (ppHud == null) return;
+        float frac = (mode == 2 && ppBoost != null) ? level / 2f : level;
+        ppIcon.set(mode == 1 ? 0 : (level <= 0.001f ? 2 : 1), level);
+        FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) ppFill.getLayoutParams();
+        lp.width = (int) (dp(150) * Math.max(0f, Math.min(1f, frac)));
+        ppFill.setLayoutParams(lp);
+        ppFillBg.setColor(mode == 2 && level > 1.001f ? 0xFFE9BE42 : Color.WHITE);
+        ppPct.setText(Math.round(level * 100f) + "%");
+        handler.removeCallbacks(ppHudHider);
+        ppHud.setVisibility(View.VISIBLE);
+    }
+
+    private float ppCurBrightness() {
+        float b = getWindow().getAttributes().screenBrightness;
+        if (b >= 0f) return b;
+        try {
+            return android.provider.Settings.System.getInt(getContentResolver(), android.provider.Settings.System.SCREEN_BRIGHTNESS) / 255f;
+        } catch (Exception e) { return 0.5f; }
+    }
+
+    private void ppSetBrightness(float b) {
+        android.view.WindowManager.LayoutParams lp = getWindow().getAttributes();
+        lp.screenBrightness = b;
+        getWindow().setAttributes(lp);
+    }
+
+    private float ppCurVolume() {
+        android.media.AudioManager am = (android.media.AudioManager) getSystemService(AUDIO_SERVICE);
+        int max = Math.max(1, am.getStreamMaxVolume(android.media.AudioManager.STREAM_MUSIC));
+        float sys = am.getStreamVolume(android.media.AudioManager.STREAM_MUSIC) / (float) max;
+        return (ppVolLevel > 1f && sys >= 0.999f) ? ppVolLevel : sys;
+    }
+
+    private int ppGain(float level) { return level > 1f ? (int) (2000 * Math.log10(level)) : 0; }
+
+    private void ppSetVolume(float level) {
+        ppVolLevel = level;
+        android.media.AudioManager am = (android.media.AudioManager) getSystemService(AUDIO_SERVICE);
+        int max = am.getStreamMaxVolume(android.media.AudioManager.STREAM_MUSIC);
+        try { am.setStreamVolume(android.media.AudioManager.STREAM_MUSIC, Math.round(Math.min(level, 1f) * max), 0); } catch (Exception e) { }
+        if (ppBoost != null) {
+            try {
+                int g = ppGain(level);
+                ppBoost.setTargetGain(g);
+                ppBoost.setEnabled(g > 0);
+            } catch (Exception e) { }
+        }
+    }
+
+    private void ppAttachBoost(int session) {
+        try {
+            if (ppBoost != null) ppBoost.release();
+            ppBoost = new android.media.audiofx.LoudnessEnhancer(session);
+            int g = ppGain(ppVolLevel);
+            ppBoost.setTargetGain(g);
+            ppBoost.setEnabled(g > 0);
+        } catch (Throwable t) { ppBoost = null; }
+    }
+
+    private void ppRelease() {
+        try { if (ppBoost != null) ppBoost.release(); } catch (Throwable t) { }
+        ppBoost = null;
+    }
+
+    private int ppSwipe(MotionEvent ev, int w, int h) {
+        switch (ev.getActionMasked()) {
+            case MotionEvent.ACTION_DOWN:
+                ppDownX = ev.getX();
+                ppDownY = ev.getY();
+                ppActive = false;
+                ppDecided = false;
+                ppMode = ppDownX < w / 2f ? 1 : 2;
+                return 0;
+            case MotionEvent.ACTION_MOVE: {
+                if (!ppDecided) {
+                    float dx = ev.getX() - ppDownX, dy = ev.getY() - ppDownY;
+                    if (Math.abs(dx) < dp(12) && Math.abs(dy) < dp(12)) return 0;
+                    ppDecided = true;
+                    if (Math.abs(dy) > Math.abs(dx) * 1.5f) {
+                        ppActive = true;
+                        ppStart = ppMode == 1 ? ppCurBrightness() : ppCurVolume();
+                        ppDownY = ev.getY();
+                        return 1;
+                    }
+                    return 0;
+                }
+                if (!ppActive) return 0;
+                float cap = (ppMode == 2 && ppBoost != null) ? 2f : 1f;
+                float frac = (ppDownY - ev.getY()) / (h * 0.8f);
+                if (ppMode == 1) {
+                    float b = Math.max(0.02f, Math.min(1f, ppStart + frac));
+                    ppSetBrightness(b);
+                    ppShowHud(1, b);
+                } else {
+                    float vol = Math.max(0f, Math.min(cap, ppStart + frac * cap));
+                    ppSetVolume(vol);
+                    ppShowHud(2, vol);
+                }
+                return 2;
+            }
+            case MotionEvent.ACTION_UP:
+            case MotionEvent.ACTION_CANCEL: {
+                boolean was = ppActive;
+                ppActive = false;
+                ppDecided = false;
+                if (was) {
+                    handler.removeCallbacks(ppHudHider);
+                    handler.postDelayed(ppHudHider, 900);
+                    return 2;
+                }
+                return 0;
+            }
+        }
+        return 0;
+    }
+
     private int dp(int v) { return (int) (v * getResources().getDisplayMetrics().density + 0.5f); }
 
     private TextView text(String s, int sp, int color, boolean bold) {
@@ -312,6 +525,7 @@ public class PlayerActivity extends Activity {
         bottom.addView(speedTv, sl);
         controls.addView(bottom, new FrameLayout.LayoutParams(MATCH, WRAP, Gravity.BOTTOM));
 
+        ppBuildHud(root);
         final GestureDetector gd = new GestureDetector(this, new GestureDetector.SimpleOnGestureListener() {
             @Override public boolean onDown(MotionEvent e) { return true; }
             @Override public boolean onSingleTapConfirmed(MotionEvent e) { toggleControls(); return true; }
@@ -320,13 +534,25 @@ public class PlayerActivity extends Activity {
                 return true;
             }
         });
-        root.setOnTouchListener((v, ev) -> gd.onTouchEvent(ev));
+        root.setOnTouchListener((v, ev) -> {
+            int ppst = ppSwipe(ev, root.getWidth(), root.getHeight());
+            if (ppst == 1) {
+                MotionEvent ppc = MotionEvent.obtain(ev);
+                ppc.setAction(MotionEvent.ACTION_CANCEL);
+                gd.onTouchEvent(ppc);
+                ppc.recycle();
+                return true;
+            }
+            if (ppst == 2) return true;
+            return gd.onTouchEvent(ev);
+        });
         setContentView(root);
 
         video.setVideoURI(Uri.parse(uri));
         final int resume = sp.getInt("pos_" + dlId, 0);
         video.setOnPreparedListener(player -> {
             mp = player;
+            ppAttachBoost(player.getAudioSessionId());
             prepared = true;
             sp.edit().putInt("dur_" + dlId, video.getDuration()).apply();
             if (resume > 0 && resume < video.getDuration() - 3000) video.seekTo(resume);
@@ -369,6 +595,7 @@ public class PlayerActivity extends Activity {
     @Override
     protected void onDestroy() {
         super.onDestroy();
+        ppRelease();
         handler.removeCallbacksAndMessages(null);
     }
 }

@@ -31,6 +31,7 @@
         <package android:name="com.zhiliaoapp.musically"/>
     </queries>
 
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS"/>
     <application
         android:label="MyPicha+"
         android:icon="@mipmap/ic_launcher"
