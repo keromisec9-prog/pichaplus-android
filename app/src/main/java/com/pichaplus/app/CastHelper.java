@@ -1,15 +1,38 @@
 package com.pichaplus.app;
 
 import android.app.Activity;
-import android.app.AlertDialog;
+import android.app.Dialog;
 import android.content.Context;
+import android.content.SharedPreferences;
+import android.content.res.ColorStateList;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.graphics.Canvas;
+import android.graphics.Outline;
+import android.graphics.Paint;
+import android.graphics.Path;
+import android.graphics.PorterDuff;
+import android.graphics.RectF;
+import android.graphics.Typeface;
+import android.graphics.drawable.GradientDrawable;
 import android.net.wifi.WifiManager;
 import android.os.Handler;
 import android.os.Looper;
+import android.text.TextUtils;
+import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.View;
+import android.view.ViewGroup;
+import android.view.ViewOutlineProvider;
+import android.view.Window;
 import android.webkit.JavascriptInterface;
 import android.webkit.WebView;
+import android.widget.FrameLayout;
+import android.widget.ImageView;
+import android.widget.LinearLayout;
+import android.widget.ProgressBar;
+import android.widget.SeekBar;
+import android.widget.TextView;
 import android.widget.Toast;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
@@ -23,6 +46,7 @@ import java.net.URL;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -31,41 +55,98 @@ import java.util.regex.Pattern;
 
 public class CastHelper {
     private static final String AVT = "urn:schemas-upnp-org:service:AVTransport:1";
-    private static final int THEME = android.R.style.Theme_DeviceDefault_Dialog_Alert;
+    private static final int MATCH = ViewGroup.LayoutParams.MATCH_PARENT;
+    private static final int WRAP = ViewGroup.LayoutParams.WRAP_CONTENT;
+    private static final int BG = 0xFF0D0F14;
+    private static final int PANEL = 0xFF12141A;
+    private static final int CARD = 0xFF181B22;
+    private static final int LINE = 0xFF2A2E38;
+    private static final int RED = 0xFFE8344E;
+    private static final int GREEN = 0xFF2ED47A;
+    private static final int GREY = 0xFF9AA0AC;
+    private static final int IC_PLAY = com.google.android.gms.cast.framework.R.drawable.cast_ic_mini_controller_play_large;
+    private static final int IC_PAUSE = com.google.android.gms.cast.framework.R.drawable.cast_ic_mini_controller_pause_large;
+
     private final Activity act;
     private final WebView web;
     private final Handler ui = new Handler(Looper.getMainLooper());
     private final ExecutorService pool = Executors.newCachedThreadPool();
+    private final SharedPreferences prefs;
+
+    // what the page is showing right now (a candidate to cast)
     private volatile String mediaUrl = "";
     private volatile String mediaTitle = "";
+    private volatile int mediaClipSecs = 0;
+    private volatile int mediaClipStart = -1;
+    private volatile String artBackdrop = "";
+    private volatile String artPoster = "";
+
+    // what is on the TV right now
     private volatile String activeControl;
     private volatile String activeName = "";
+    private volatile String castUrl = "";
+    private volatile String castTitle = "";
+    private volatile int castClipSecs = 0;
+    private volatile int castClipStart = -1;
+    private volatile String castBackdrop = "";
+    private volatile String castPoster = "";
     private volatile boolean paused = false;
-    private android.app.Dialog sheet;
-    private android.widget.LinearLayout sheetList;
-    private android.widget.TextView sheetStatus;
+    private volatile long loopToken = 0;
+    private volatile int loopStart = 0;
+
+    // search sheet
+    private Dialog sheet;
+    private LinearLayout sheetList;
+    private TextView sheetStatus;
+
+    // controller screen
+    private Dialog ctrl;
+    private volatile boolean ctrlOpen = false;
+    private boolean userSeeking = false;
+    private int curDur = 0;
+    private TextView cElapsed, cRemain, cCardTime;
+    private SeekBar cSeek;
+    private ProgressBar cCardBar;
+    private ImageView cPlay;
 
     public CastHelper(Activity a, WebView w) {
         act = a;
         web = w;
+        prefs = a.getSharedPreferences("picha_cast", Context.MODE_PRIVATE);
+        restore();
     }
 
-    // The page calls this when a movie starts (url) and when the player closes (empty)
+    // ---------------------------------------------------------------- page bridge
+
     @JavascriptInterface
     public void setMedia(String url, String title) {
-        mediaClipSecs = 0;
         mediaUrl = url == null ? "" : url;
         mediaTitle = title == null ? "" : title;
+        mediaClipSecs = 0;
+        mediaClipStart = -1;
+        artBackdrop = "";
+        artPoster = "";
     }
 
-    // One tap from a page button: opens the TV picker (or the remote sheet if already casting)
+    @JavascriptInterface
+    public void setArt(String backdrop, String poster) {
+        artBackdrop = backdrop == null ? "" : backdrop;
+        artPoster = poster == null ? "" : poster;
+    }
+
     @JavascriptInterface
     public void castNow(String url, String title) {
-        mediaClipSecs = 0;
+        castClip(url, title, 0, -1);
+    }
+
+    @JavascriptInterface
+    public void castClip(String url, String title, int clipSecs, int startSecs) {
         if (url != null && !url.isEmpty()) {
             mediaUrl = url;
             mediaTitle = title == null ? "" : title;
         }
+        mediaClipSecs = clipSecs;
+        mediaClipStart = startSecs;
         ui.post(() -> onTap());
     }
 
@@ -74,24 +155,772 @@ public class CastHelper {
         return activeControl != null;
     }
 
-    // Sends a new clip to the TV that is already chosen. No picker.
+    @JavascriptInterface
+    public boolean available() {
+        return false;
+    }
+
+    @JavascriptInterface
+    public void stop() {
+        ui.post(() -> stopCasting());
+    }
+
     @JavascriptInterface
     public boolean sendNext(String url, String title) {
+        return sendClip(url, title, 0, -1);
+    }
+
+    @JavascriptInterface
+    public boolean sendClip(String url, String title, int clipSecs, int startSecs) {
         final String c = activeControl;
         if (c == null || url == null || url.isEmpty()) return false;
         final String t = title == null ? "" : title;
-        mediaUrl = url;
-        mediaTitle = t;
-        paused = false;
         final String u = url;
+        final int clip = clipSecs;
+        final int st = startSecs;
+        mediaUrl = u;
+        mediaTitle = t;
+        mediaClipSecs = clip;
+        mediaClipStart = st;
+        castUrl = u;
+        castTitle = t;
+        castClipSecs = clip;
+        castClipStart = st;
+        castBackdrop = artBackdrop;
+        castPoster = artPoster;
+        paused = false;
+        loopToken++;
+        save();
         pool.execute(() -> {
             try {
                 pushMedia(c, u, t);
+                if (clip > 0) startClipLoop(c, clip, st);
             } catch (Exception e) {
-                ui.post(() -> Toast.makeText(act, "Could not send to TV", Toast.LENGTH_SHORT).show());
+                toast("Could not send to TV");
             }
         });
         return true;
+    }
+
+    public void attach(View b) {
+        b.setOnTouchListener((v, e) -> {
+            if (e.getAction() == MotionEvent.ACTION_UP) onTap();
+            return true;
+        });
+    }
+
+    // ---------------------------------------------------------------- session memory
+
+    private void save() {
+        SharedPreferences.Editor e = prefs.edit();
+        if (activeControl == null) {
+            e.clear();
+        } else {
+            e.putString("control", activeControl);
+            e.putString("name", activeName);
+            e.putString("url", castUrl);
+            e.putString("title", castTitle);
+            e.putInt("clip", castClipSecs);
+            e.putInt("clipStart", castClipStart);
+            e.putString("backdrop", castBackdrop);
+            e.putString("poster", castPoster);
+            e.putBoolean("paused", paused);
+        }
+        e.apply();
+    }
+
+    private void forget(String control) {
+        if (control != null && control.equals(activeControl)) {
+            activeControl = null;
+            paused = false;
+            loopToken++;
+            save();
+        }
+    }
+
+    private void restore() {
+        final String c = prefs.getString("control", null);
+        if (c == null) return;
+        activeControl = c;
+        activeName = prefs.getString("name", "");
+        castUrl = prefs.getString("url", "");
+        castTitle = prefs.getString("title", "");
+        castClipSecs = prefs.getInt("clip", 0);
+        castClipStart = prefs.getInt("clipStart", -1);
+        castBackdrop = prefs.getString("backdrop", "");
+        castPoster = prefs.getString("poster", "");
+        paused = prefs.getBoolean("paused", false);
+        pool.execute(() -> {
+            for (int attempt = 0; attempt < 3; attempt++) {
+                try {
+                    String info = soap(c, "GetTransportInfo", "<InstanceID>0</InstanceID>");
+                    Matcher m = Pattern.compile("(?s)<CurrentTransportState>(.*?)</CurrentTransportState>").matcher(info);
+                    String st = m.find() ? m.group(1).trim() : "";
+                    if (st.equals("PLAYING") || st.equals("TRANSITIONING")) {
+                        paused = false;
+                        if (castClipSecs > 0) startClipLoop(c, castClipSecs, castClipStart);
+                    } else if (st.equals("PAUSED_PLAYBACK")) {
+                        paused = true;
+                        if (castClipSecs > 0) startClipLoop(c, castClipSecs, castClipStart);
+                    } else {
+                        forget(c);
+                    }
+                    return;
+                } catch (Exception e) {
+                    try { Thread.sleep(2000); } catch (InterruptedException ie) { return; }
+                }
+            }
+            forget(c);
+        });
+    }
+
+    // ---------------------------------------------------------------- tap handling
+
+    private void onTap() {
+        if (activeControl != null) {
+            showController();
+            return;
+        }
+        if (mediaUrl.isEmpty()) {
+            toast("Start a movie first, then tap here to cast it to your TV");
+            return;
+        }
+        startSearch();
+    }
+
+    private void castAnother() {
+        if (!castUrl.isEmpty()) {
+            mediaUrl = castUrl;
+            mediaTitle = castTitle;
+            mediaClipSecs = castClipSecs;
+            mediaClipStart = castClipStart;
+            artBackdrop = castBackdrop;
+            artPoster = castPoster;
+        }
+        if (mediaUrl.isEmpty()) {
+            toast("Nothing to cast");
+            return;
+        }
+        startSearch();
+    }
+
+    // ---------------------------------------------------------------- small UI helpers
+
+    private int dp(int v) {
+        return (int) (v * act.getResources().getDisplayMetrics().density + 0.5f);
+    }
+
+    private void toast(final String m) {
+        ui.post(() -> Toast.makeText(act, m, Toast.LENGTH_SHORT).show());
+    }
+
+    private GradientDrawable round(int color, int radiusDp, int strokeDp, int strokeColor) {
+        GradientDrawable g = new GradientDrawable();
+        g.setColor(color);
+        g.setCornerRadius(dp(radiusDp));
+        if (strokeDp > 0) g.setStroke(dp(strokeDp), strokeColor);
+        return g;
+    }
+
+    private TextView text(String s, float sizeSp, int color, boolean bold) {
+        TextView t = new TextView(act);
+        t.setText(s);
+        t.setTextSize(sizeSp);
+        t.setTextColor(color);
+        if (bold) t.setTypeface(null, Typeface.BOLD);
+        return t;
+    }
+
+    private LinearLayout.LayoutParams lp(int w, int h, int l, int t, int r, int b) {
+        LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(w, h);
+        p.setMargins(dp(l), dp(t), dp(r), dp(b));
+        return p;
+    }
+
+    private static String prettyName(String n) {
+        if (n == null || n.trim().isEmpty()) return "TV";
+        return n.trim().replaceAll("(?i)\\btv\\b", "TV");
+    }
+
+    private static String capital(String s) {
+        if (s == null || s.isEmpty()) return s;
+        return Character.toUpperCase(s.charAt(0)) + s.substring(1);
+    }
+
+    private static String fmtShort(int sec) {
+        if (sec < 0) sec = 0;
+        int h = sec / 3600, m = (sec % 3600) / 60, s = sec % 60;
+        return h > 0 ? String.format(Locale.US, "%d:%02d:%02d", h, m, s)
+                     : String.format(Locale.US, "%d:%02d", m, s);
+    }
+
+    private void loadImage(final String url, final ImageView iv) {
+        if (url == null || url.isEmpty()) return;
+        pool.execute(() -> {
+            try {
+                HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
+                c.setConnectTimeout(5000);
+                c.setReadTimeout(8000);
+                InputStream in = c.getInputStream();
+                final Bitmap b = BitmapFactory.decodeStream(in);
+                in.close();
+                if (b != null) ui.post(() -> iv.setImageBitmap(b));
+            } catch (Exception ignore) {
+            }
+        });
+    }
+
+    // ---------------------------------------------------------------- icons
+
+    private static class Glyph extends View {
+        static final int BACK = 0, CHEVRON = 1, CAST = 2, DEVICE = 3, DEVICE_ADD = 4, STOP = 5, PLAY = 6, REPLAY10 = 7, FORWARD10 = 8;
+        final int kind;
+        int color = 0xFFFFFFFF;
+        int bgColor = 0xFF181B22;
+        final Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
+
+        Glyph(Context c, int kind) {
+            super(c);
+            this.kind = kind;
+        }
+
+        Glyph color(int c) {
+            color = c;
+            return this;
+        }
+
+        @Override
+        protected void onDraw(Canvas cv) {
+            float w = getWidth(), h = getHeight();
+            float s = Math.min(w, h);
+            cv.save();
+            cv.translate((w - s) / 2f, (h - s) / 2f);
+            cv.scale(s / 24f, s / 24f);
+            p.setColor(color);
+            p.setStrokeCap(Paint.Cap.ROUND);
+            p.setStrokeJoin(Paint.Join.ROUND);
+            if (kind == BACK || kind == CHEVRON) {
+                p.setStyle(Paint.Style.STROKE);
+                p.setStrokeWidth(2.2f);
+                Path a = new Path();
+                if (kind == BACK) {
+                    a.moveTo(15, 5); a.lineTo(8, 12); a.lineTo(15, 19);
+                } else {
+                    a.moveTo(9, 5); a.lineTo(16, 12); a.lineTo(9, 19);
+                }
+                cv.drawPath(a, p);
+            } else if (kind == CAST) {
+                p.setStyle(Paint.Style.STROKE);
+                p.setStrokeWidth(2f);
+                Path a = new Path();
+                a.moveTo(2, 8); a.lineTo(2, 4); a.lineTo(22, 4); a.lineTo(22, 20); a.lineTo(14, 20);
+                cv.drawPath(a, p);
+                p.setStrokeCap(Paint.Cap.BUTT);
+                cv.drawArc(new RectF(-5, 15, 7, 27), -90, 90, false, p);
+                cv.drawArc(new RectF(-9, 11, 11, 31), -90, 90, false, p);
+                p.setStyle(Paint.Style.FILL);
+                cv.drawArc(new RectF(-2, 18, 4, 24), -90, 90, true, p);
+            } else if (kind == DEVICE) {
+                p.setStyle(Paint.Style.STROKE);
+                p.setStrokeWidth(1.8f);
+                cv.drawRoundRect(new RectF(2.5f, 4, 21.5f, 16), 2.5f, 2.5f, p);
+                cv.drawLine(12, 16, 12, 19.5f, p);
+                cv.drawLine(8, 19.5f, 16, 19.5f, p);
+            } else if (kind == DEVICE_ADD) {
+                p.setStyle(Paint.Style.STROKE);
+                p.setStrokeWidth(1.8f);
+                cv.drawRoundRect(new RectF(2, 3.5f, 19, 14.5f), 2.5f, 2.5f, p);
+                cv.drawLine(10.5f, 14.5f, 10.5f, 18f, p);
+                cv.drawLine(7, 18f, 14, 18f, p);
+                p.setStyle(Paint.Style.FILL);
+                p.setColor(bgColor);
+                cv.drawCircle(18, 17.5f, 5.6f, p);
+                p.setColor(color);
+                p.setStyle(Paint.Style.STROKE);
+                p.setStrokeWidth(1.6f);
+                cv.drawCircle(18, 17.5f, 4.4f, p);
+                cv.drawLine(18, 15.3f, 18, 19.7f, p);
+                cv.drawLine(15.8f, 17.5f, 20.2f, 17.5f, p);
+            } else if (kind == STOP) {
+                p.setStyle(Paint.Style.STROKE);
+                p.setStrokeWidth(1.8f);
+                cv.drawCircle(12, 12, 9.5f, p);
+                p.setStyle(Paint.Style.FILL);
+                cv.drawRoundRect(new RectF(8.5f, 8.5f, 15.5f, 15.5f), 1f, 1f, p);
+            } else if (kind == PLAY) {
+                p.setStyle(Paint.Style.FILL);
+                Path a = new Path();
+                a.moveTo(7, 4); a.lineTo(7, 20); a.lineTo(20, 12); a.close();
+                cv.drawPath(a, p);
+            } else {
+                cv.save();
+                if (kind == FORWARD10) cv.scale(-1f, 1f, 12f, 12f);
+                p.setStyle(Paint.Style.STROKE);
+                p.setStrokeWidth(1.7f);
+                p.setStrokeCap(Paint.Cap.BUTT);
+                cv.drawArc(new RectF(12 - 8.2f, 12 - 8.2f, 12 + 8.2f, 12 + 8.2f), -90f, 270f, false, p);
+                p.setStyle(Paint.Style.FILL);
+                Path a = new Path();
+                a.moveTo(12 - 3.1f, 12 - 8.2f);
+                a.lineTo(12 + 1.2f, 12 - 8.2f - 2.9f);
+                a.lineTo(12 + 1.2f, 12 - 8.2f + 2.9f);
+                a.close();
+                cv.drawPath(a, p);
+                cv.restore();
+                p.setTextAlign(Paint.Align.CENTER);
+                p.setTextSize(6.4f);
+                p.setFakeBoldText(true);
+                cv.drawText("10", 12f, 14.2f, p);
+            }
+            cv.restore();
+        }
+    }
+
+    // ---------------------------------------------------------------- TV search sheet
+
+    private void closeSheet() {
+        Dialog d = sheet;
+        sheet = null;
+        if (d != null) {
+            try { d.dismiss(); } catch (Exception ignore) {}
+        }
+    }
+
+    private void openSheet(String title, String status) {
+        closeSheet();
+        LinearLayout box = new LinearLayout(act);
+        box.setOrientation(LinearLayout.VERTICAL);
+        box.setPadding(dp(20), dp(20), dp(20), dp(28));
+        GradientDrawable bg = new GradientDrawable();
+        bg.setColor(0xFF1A1A1A);
+        float r = dp(16);
+        bg.setCornerRadii(new float[]{r, r, r, r, 0, 0, 0, 0});
+        box.setBackground(bg);
+
+        box.addView(text(title, 17, 0xFFFFFFFF, true));
+        sheetStatus = text(status, 13, 0xFFAAAAAA, false);
+        sheetStatus.setPadding(0, dp(8), 0, 0);
+        box.addView(sheetStatus);
+        sheetList = new LinearLayout(act);
+        sheetList.setOrientation(LinearLayout.VERTICAL);
+        box.addView(sheetList);
+
+        final Dialog d = new Dialog(act, android.R.style.Theme_Translucent_NoTitleBar);
+        d.setContentView(box);
+        d.setCanceledOnTouchOutside(true);
+        Window w = d.getWindow();
+        if (w != null) {
+            w.setLayout(MATCH, WRAP);
+            w.setGravity(Gravity.BOTTOM);
+            w.addFlags(android.view.WindowManager.LayoutParams.FLAG_DIM_BEHIND);
+            w.setDimAmount(0.6f);
+        }
+        d.setOnDismissListener(x -> { if (sheet == d) sheet = null; });
+        sheet = d;
+        d.show();
+    }
+
+    private View sheetBtn(String label, final Runnable action) {
+        TextView t = text(label, 15, 0xFFFFFFFF, false);
+        t.setPadding(dp(16), dp(14), dp(16), dp(14));
+        t.setBackground(round(0xFF2A2A2A, 10, 0, 0));
+        t.setLayoutParams(lp(MATCH, WRAP, 0, 10, 0, 0));
+        t.setOnClickListener(v -> action.run());
+        return t;
+    }
+
+    private void startSearch() {
+        openSheet("Cast to TV", "Searching for TVs...");
+        discover();
+    }
+
+    private void showDevices(final List<String[]> list) {
+        if (sheet == null) return;
+        sheetList.removeAllViews();
+        if (list.isEmpty()) {
+            sheetStatus.setText("No TVs found. Check that the phone and TV are on the same Wi-Fi and that media streaming (DLNA) is on.");
+            return;
+        }
+        sheetStatus.setText("Tap your TV");
+        for (final String[] d : list) {
+            sheetList.addView(sheetBtn(d[0], () -> { closeSheet(); play(d); }));
+        }
+    }
+
+    // ---------------------------------------------------------------- controller screen
+
+    private void closeController() {
+        Dialog d = ctrl;
+        ctrl = null;
+        ctrlOpen = false;
+        if (d != null) {
+            try { d.dismiss(); } catch (Exception ignore) {}
+        }
+    }
+
+    private void showController() {
+        closeController();
+        closeSheet();
+        final Dialog d = new Dialog(act, android.R.style.Theme_Black_NoTitleBar_Fullscreen);
+        d.setCanceledOnTouchOutside(false);
+        final String shownTitle = castTitle == null ? "" : castTitle.toUpperCase(Locale.getDefault());
+
+        LinearLayout root = new LinearLayout(act);
+        root.setOrientation(LinearLayout.VERTICAL);
+        root.setBackgroundColor(BG);
+
+        // ----- top area: backdrop, fade, top bar, mini card
+        FrameLayout top = new FrameLayout(act);
+        root.addView(top, new LinearLayout.LayoutParams(MATCH, 0, 1f));
+
+        final ImageView backdrop = new ImageView(act);
+        backdrop.setScaleType(ImageView.ScaleType.CENTER_CROP);
+        top.addView(backdrop, new FrameLayout.LayoutParams(MATCH, MATCH));
+        View fade = new View(act);
+        fade.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
+            new int[]{0xAA000000, 0x66000000, BG}));
+        top.addView(fade, new FrameLayout.LayoutParams(MATCH, MATCH));
+
+        LinearLayout bar = new LinearLayout(act);
+        bar.setOrientation(LinearLayout.HORIZONTAL);
+        bar.setGravity(Gravity.CENTER_VERTICAL);
+        bar.setPadding(dp(18), dp(34), dp(18), 0);
+        Glyph back = new Glyph(act, Glyph.BACK);
+        bar.addView(back, new LinearLayout.LayoutParams(dp(30), dp(30)));
+        TextView ttl = text(shownTitle, 20, 0xFFFFFFFF, true);
+        ttl.setSingleLine(true);
+        ttl.setEllipsize(TextUtils.TruncateAt.END);
+        LinearLayout.LayoutParams tl = new LinearLayout.LayoutParams(0, WRAP, 1f);
+        tl.setMargins(dp(16), 0, dp(12), 0);
+        bar.addView(ttl, tl);
+        bar.addView(new Glyph(act, Glyph.CAST), new LinearLayout.LayoutParams(dp(28), dp(28)));
+        top.addView(bar, new FrameLayout.LayoutParams(MATCH, WRAP, Gravity.TOP));
+        back.setOnClickListener(v -> closeController());
+
+        LinearLayout card = new LinearLayout(act);
+        card.setOrientation(LinearLayout.HORIZONTAL);
+        card.setGravity(Gravity.CENTER_VERTICAL);
+        card.setPadding(dp(6), dp(6), dp(14), dp(6));
+        card.setBackground(round(0xCC12141A, 14, 1, LINE));
+        FrameLayout thumbBox = new FrameLayout(act);
+        final ImageView poster = new ImageView(act);
+        poster.setScaleType(ImageView.ScaleType.CENTER_CROP);
+        poster.setBackgroundColor(0xFF22252D);
+        poster.setClipToOutline(true);
+        poster.setOutlineProvider(new ViewOutlineProvider() {
+            @Override
+            public void getOutline(View v, Outline o) {
+                o.setRoundRect(0, 0, v.getWidth(), v.getHeight(), dp(10));
+            }
+        });
+        thumbBox.addView(poster, new FrameLayout.LayoutParams(MATCH, MATCH));
+        thumbBox.addView(new Glyph(act, Glyph.PLAY), new FrameLayout.LayoutParams(dp(26), dp(26), Gravity.CENTER));
+        card.addView(thumbBox, new LinearLayout.LayoutParams(dp(128), dp(76)));
+
+        LinearLayout info = new LinearLayout(act);
+        info.setOrientation(LinearLayout.VERTICAL);
+        info.setPadding(dp(16), 0, 0, 0);
+        TextView cardTitle = text(shownTitle, 15, 0xFFFFFFFF, true);
+        cardTitle.setSingleLine(true);
+        cardTitle.setEllipsize(TextUtils.TruncateAt.END);
+        info.addView(cardTitle);
+        cCardBar = new ProgressBar(act, null, android.R.attr.progressBarStyleHorizontal);
+        cCardBar.setMax(1000);
+        cCardBar.setProgressTintList(ColorStateList.valueOf(RED));
+        cCardBar.setProgressBackgroundTintList(ColorStateList.valueOf(0xFF3A3D46));
+        info.addView(cCardBar, lp(MATCH, dp(6), 0, 10, 0, 0));
+        cCardTime = text("--:-- / --:--", 12, 0xFFD5D8DE, false);
+        cCardTime.setGravity(Gravity.END);
+        info.addView(cCardTime, lp(MATCH, WRAP, 0, 8, 0, 0));
+        card.addView(info, new LinearLayout.LayoutParams(0, WRAP, 1f));
+        FrameLayout.LayoutParams cardLp = new FrameLayout.LayoutParams(MATCH, WRAP, Gravity.BOTTOM);
+        cardLp.setMargins(dp(18), 0, dp(18), dp(22));
+        top.addView(card, cardLp);
+
+        // ----- bottom sheet
+        final LinearLayout panel = new LinearLayout(act);
+        panel.setOrientation(LinearLayout.VERTICAL);
+        panel.setGravity(Gravity.CENTER_HORIZONTAL);
+        GradientDrawable pbg = new GradientDrawable();
+        pbg.setColor(PANEL);
+        float pr = dp(28);
+        pbg.setCornerRadii(new float[]{pr, pr, pr, pr, 0, 0, 0, 0});
+        pbg.setStroke(dp(1), 0xFF1E2128);
+        panel.setBackground(pbg);
+        panel.setPadding(dp(20), 0, dp(20), dp(24));
+        root.addView(panel, new LinearLayout.LayoutParams(MATCH, WRAP));
+
+        FrameLayout handleBox = new FrameLayout(act);
+        View handle = new View(act);
+        handle.setBackground(round(0xFF555966, 2, 0, 0));
+        handleBox.addView(handle, new FrameLayout.LayoutParams(dp(42), dp(4), Gravity.CENTER));
+        panel.addView(handleBox, new LinearLayout.LayoutParams(MATCH, dp(30)));
+        handleBox.setOnTouchListener(new View.OnTouchListener() {
+            float startY;
+            @Override
+            public boolean onTouch(View v, MotionEvent e) {
+                int a = e.getAction();
+                if (a == MotionEvent.ACTION_DOWN) {
+                    startY = e.getRawY();
+                    return true;
+                } else if (a == MotionEvent.ACTION_MOVE) {
+                    panel.setTranslationY(Math.max(0f, e.getRawY() - startY));
+                    return true;
+                } else if (a == MotionEvent.ACTION_UP || a == MotionEvent.ACTION_CANCEL) {
+                    if (e.getRawY() - startY > dp(110)) closeController();
+                    else panel.animate().translationY(0f).setDuration(150).start();
+                    return true;
+                }
+                return false;
+            }
+        });
+
+        panel.addView(new Glyph(act, Glyph.CAST).color(GREEN), lp(dp(30), dp(30), 0, 10, 0, 0));
+        TextView head = text("Playing on " + prettyName(activeName), 23, 0xFFFFFFFF, true);
+        head.setGravity(Gravity.CENTER);
+        panel.addView(head, lp(MATCH, WRAP, 0, 10, 0, 0));
+        TextView sub = text((shownTitle.isEmpty() ? "" : shownTitle + "   \u2022   ") + "Connected", 14, GREY, false);
+        sub.setGravity(Gravity.CENTER);
+        sub.setSingleLine(true);
+        sub.setEllipsize(TextUtils.TruncateAt.END);
+        panel.addView(sub, lp(MATCH, WRAP, 0, 6, 0, 0));
+
+        // controls
+        LinearLayout controls = new LinearLayout(act);
+        controls.setOrientation(LinearLayout.HORIZONTAL);
+        controls.setGravity(Gravity.CENTER);
+        Glyph rew = new Glyph(act, Glyph.REPLAY10);
+        Glyph fwd = new Glyph(act, Glyph.FORWARD10);
+        cPlay = new ImageView(act);
+        cPlay.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        cPlay.setPadding(dp(26), dp(26), dp(26), dp(26));
+        cPlay.setBackground(round(0xFF1B1E26, 44, 1, LINE));
+        cPlay.setImageResource(paused ? IC_PLAY : IC_PAUSE);
+        cPlay.setColorFilter(0xFFFFFFFF, PorterDuff.Mode.SRC_IN);
+        controls.addView(rew, lp(dp(58), dp(58), 22, 0, 22, 0));
+        controls.addView(cPlay, lp(dp(88), dp(88), 22, 0, 22, 0));
+        controls.addView(fwd, lp(dp(58), dp(58), 22, 0, 22, 0));
+        panel.addView(controls, lp(MATCH, WRAP, 0, 22, 0, 0));
+        rew.setOnClickListener(v -> seekBy(-10));
+        fwd.setOnClickListener(v -> seekBy(10));
+        cPlay.setOnClickListener(v -> {
+            togglePause();
+            cPlay.setImageResource(paused ? IC_PLAY : IC_PAUSE);
+        });
+
+        // seek row
+        LinearLayout seekRow = new LinearLayout(act);
+        seekRow.setOrientation(LinearLayout.HORIZONTAL);
+        seekRow.setGravity(Gravity.CENTER_VERTICAL);
+        cElapsed = text("0:00", 14, 0xFFFFFFFF, false);
+        cRemain = text("--:--", 14, GREY, false);
+        cSeek = new SeekBar(act);
+        cSeek.setMax(1000);
+        cSeek.setProgressTintList(ColorStateList.valueOf(RED));
+        cSeek.setProgressBackgroundTintList(ColorStateList.valueOf(0xFF3A3D46));
+        cSeek.setThumbTintList(ColorStateList.valueOf(0xFFFFFFFF));
+        cSeek.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override
+            public void onProgressChanged(SeekBar sb, int progress, boolean fromUser) {
+                if (fromUser) showTimes(progress / 1000f);
+            }
+            @Override
+            public void onStartTrackingTouch(SeekBar sb) {
+                userSeeking = true;
+            }
+            @Override
+            public void onStopTrackingTouch(SeekBar sb) {
+                userSeeking = false;
+                seekToFraction(sb.getProgress() / 1000f);
+            }
+        });
+        seekRow.addView(cElapsed, new LinearLayout.LayoutParams(WRAP, WRAP));
+        seekRow.addView(cSeek, new LinearLayout.LayoutParams(0, WRAP, 1f));
+        seekRow.addView(cRemain, new LinearLayout.LayoutParams(WRAP, WRAP));
+        panel.addView(seekRow, lp(MATCH, WRAP, 0, 22, 0, 0));
+
+        // device card
+        LinearLayout devCard = new LinearLayout(act);
+        devCard.setOrientation(LinearLayout.HORIZONTAL);
+        devCard.setGravity(Gravity.CENTER_VERTICAL);
+        devCard.setPadding(dp(18), dp(14), dp(18), dp(14));
+        devCard.setBackground(round(CARD, 16, 1, LINE));
+        devCard.addView(new Glyph(act, Glyph.DEVICE), new LinearLayout.LayoutParams(dp(30), dp(30)));
+        LinearLayout devInfo = new LinearLayout(act);
+        devInfo.setOrientation(LinearLayout.VERTICAL);
+        devInfo.setPadding(dp(16), 0, 0, 0);
+        devInfo.addView(text(capital(prettyName(activeName)), 17, 0xFFFFFFFF, true));
+        LinearLayout stRow = new LinearLayout(act);
+        stRow.setOrientation(LinearLayout.HORIZONTAL);
+        stRow.setGravity(Gravity.CENTER_VERTICAL);
+        View dot = new View(act);
+        dot.setBackground(round(GREEN, 4, 0, 0));
+        stRow.addView(dot, new LinearLayout.LayoutParams(dp(8), dp(8)));
+        stRow.addView(text("Connected", 14, GREEN, false), lp(WRAP, WRAP, 8, 0, 0, 0));
+        devInfo.addView(stRow, lp(WRAP, WRAP, 0, 3, 0, 0));
+        devCard.addView(devInfo, new LinearLayout.LayoutParams(0, WRAP, 1f));
+        devCard.addView(new Glyph(act, Glyph.CHEVRON).color(GREY), new LinearLayout.LayoutParams(dp(22), dp(22)));
+        panel.addView(devCard, lp(MATCH, WRAP, 0, 22, 0, 0));
+        devCard.setOnClickListener(v -> toast("Connected to " + prettyName(activeName)));
+
+        // cast to another TV
+        LinearLayout addCard = new LinearLayout(act);
+        addCard.setOrientation(LinearLayout.HORIZONTAL);
+        addCard.setGravity(Gravity.CENTER_VERTICAL);
+        addCard.setPadding(dp(18), dp(16), dp(18), dp(16));
+        addCard.setBackground(round(CARD, 16, 1, LINE));
+        addCard.addView(new Glyph(act, Glyph.DEVICE_ADD), new LinearLayout.LayoutParams(dp(30), dp(30)));
+        TextView addText = text("Cast to another TV", 17, 0xFFFFFFFF, true);
+        addCard.addView(addText, lp(0, WRAP, 16, 0, 0, 0));
+        ((LinearLayout.LayoutParams) addText.getLayoutParams()).weight = 1f;
+        addCard.addView(new Glyph(act, Glyph.CHEVRON).color(GREY), new LinearLayout.LayoutParams(dp(22), dp(22)));
+        panel.addView(addCard, lp(MATCH, WRAP, 0, 12, 0, 0));
+        addCard.setOnClickListener(v -> { closeController(); castAnother(); });
+
+        // stop casting
+        LinearLayout stop = new LinearLayout(act);
+        stop.setOrientation(LinearLayout.HORIZONTAL);
+        stop.setGravity(Gravity.CENTER);
+        stop.setPadding(dp(16), dp(16), dp(16), dp(16));
+        stop.setBackground(round(0x00000000, 16, 2, 0xFF3A3E49));
+        stop.addView(new Glyph(act, Glyph.STOP), new LinearLayout.LayoutParams(dp(26), dp(26)));
+        stop.addView(text("Stop casting", 17, 0xFFFFFFFF, true), lp(WRAP, WRAP, 12, 0, 0, 0));
+        panel.addView(stop, lp(MATCH, WRAP, 0, 14, 0, 0));
+        stop.setOnClickListener(v -> {
+            closeController();
+            stopCasting();
+            toast("Stopped casting");
+        });
+
+        d.setContentView(root);
+        Window win = d.getWindow();
+        if (win != null) win.setLayout(MATCH, MATCH);
+        d.setOnDismissListener(x -> {
+            if (ctrl == d) {
+                ctrl = null;
+                ctrlOpen = false;
+            }
+        });
+        ctrl = d;
+        ctrlOpen = true;
+        d.show();
+
+        loadImage(castBackdrop.isEmpty() ? castPoster : castBackdrop, backdrop);
+        loadImage(castPoster.isEmpty() ? castBackdrop : castPoster, poster);
+        pollLoop();
+    }
+
+    private void pollLoop() {
+        final String control = activeControl;
+        pool.execute(() -> {
+            while (ctrlOpen && control != null && control.equals(activeControl)) {
+                try {
+                    String info = soap(control, "GetPositionInfo", "<InstanceID>0</InstanceID>");
+                    final int pos = readTime(info, "RelTime");
+                    final int dur = readTime(info, "TrackDuration");
+                    ui.post(() -> applyPosition(pos, dur));
+                } catch (Exception ignore) {
+                }
+                try {
+                    Thread.sleep(1000);
+                } catch (InterruptedException e) {
+                    return;
+                }
+            }
+        });
+    }
+
+    private void applyPosition(int pos, int dur) {
+        if (!ctrlOpen || cSeek == null) return;
+        if (dur > 0) curDur = dur;
+        int total, elapsed;
+        if (castClipSecs > 0) {
+            total = castClipSecs;
+            elapsed = pos < 0 ? 0 : Math.max(0, pos - loopStart);
+        } else {
+            total = dur;
+            elapsed = pos < 0 ? 0 : pos;
+        }
+        if (total <= 0) return;
+        elapsed = Math.min(elapsed, total);
+        int prog = (int) (elapsed * 1000L / total);
+        cCardBar.setProgress(prog);
+        cCardTime.setText(fmtShort(elapsed) + " / " + fmtShort(total));
+        if (!userSeeking) {
+            cSeek.setProgress(prog);
+            cElapsed.setText(fmtShort(elapsed));
+            cRemain.setText("-" + fmtShort(total - elapsed));
+        }
+    }
+
+    private void showTimes(float f) {
+        int total = castClipSecs > 0 ? castClipSecs : curDur;
+        if (total <= 0) return;
+        int el = (int) (f * total);
+        cElapsed.setText(fmtShort(el));
+        cRemain.setText("-" + fmtShort(total - el));
+    }
+
+    private void seekToFraction(float f) {
+        final String c = activeControl;
+        if (c == null) return;
+        int total = castClipSecs > 0 ? castClipSecs : curDur;
+        if (total <= 0) {
+            toast("This TV doesn't report the length");
+            return;
+        }
+        final int target = (int) (f * total) + (castClipSecs > 0 ? loopStart : 0);
+        pool.execute(() -> {
+            try {
+                seekTo(c, target);
+            } catch (Exception e) {
+                toast("This TV doesn't support seeking");
+            }
+        });
+    }
+
+    // ---------------------------------------------------------------- playback
+
+    private void pausePhone() {
+        web.post(() -> web.evaluateJavascript(
+            "document.querySelectorAll('video').forEach(function(v){try{v.pause()}catch(e){}})", null));
+    }
+
+    private void play(final String[] dev) {
+        final String url = mediaUrl;
+        final String title = mediaTitle;
+        final int clip = mediaClipSecs;
+        final int cstart = mediaClipStart;
+        final String bd = artBackdrop;
+        final String po = artPoster;
+        final String old = activeControl;
+        toast("Sending to " + dev[0] + "...");
+        pool.execute(() -> {
+            try {
+                if (old != null && !old.equals(dev[1])) {
+                    try { soap(old, "Stop", "<InstanceID>0</InstanceID>"); } catch (Exception ignore) {}
+                }
+                pushMedia(dev[1], url, title);
+                activeControl = dev[1];
+                activeName = dev[0];
+                paused = false;
+                castUrl = url;
+                castTitle = title;
+                castClipSecs = clip;
+                castClipStart = cstart;
+                castBackdrop = bd;
+                castPoster = po;
+                save();
+                if (clip > 0) startClipLoop(dev[1], clip, cstart);
+                else loopToken++;
+                ui.post(() -> {
+                    toast("Playing on " + dev[0]);
+                    pausePhone();
+                });
+            } catch (Exception e) {
+                toast("Could not play on this TV");
+            }
+        });
     }
 
     private void pushMedia(String control, String url, String title) throws Exception {
@@ -111,95 +940,39 @@ public class CastHelper {
         soap(control, "Play", "<InstanceID>0</InstanceID><Speed>1</Speed>");
     }
 
-    private static class RemoteIcon extends View {
-        final int kind; // 0 = back 10s, 1 = pause or play, 3 = forward 10s
-        boolean paused;
-        final android.graphics.Paint p = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
-
-        RemoteIcon(Context c, int kind) {
-            super(c);
-            this.kind = kind;
-        }
-
-        @Override
-        protected void onDraw(android.graphics.Canvas cv) {
-            float w = getWidth(), h = getHeight();
-            float cx = w / 2f, cy = h / 2f, s = Math.min(w, h);
-            p.setColor(0xFFFFFFFF);
-            if (kind == 1 && !paused) {
-                p.setStyle(android.graphics.Paint.Style.FILL);
-                float bw = s * 0.11f, bh = s * 0.26f, gap = s * 0.07f;
-                cv.drawRect(cx - gap - bw, cy - bh, cx - gap, cy + bh, p);
-                cv.drawRect(cx + gap, cy - bh, cx + gap + bw, cy + bh, p);
-            } else if (kind == 1) {
-                p.setStyle(android.graphics.Paint.Style.FILL);
-                android.graphics.Path t = new android.graphics.Path();
-                t.moveTo(cx - s * 0.12f, cy - s * 0.26f);
-                t.lineTo(cx - s * 0.12f, cy + s * 0.26f);
-                t.lineTo(cx + s * 0.26f, cy);
-                t.close();
-                cv.drawPath(t, p);
-            } else {
-                cv.save();
-                if (kind == 3) cv.scale(-1f, 1f, cx, cy);
-                float r = s * 0.34f;
-                p.setStyle(android.graphics.Paint.Style.STROKE);
-                p.setStrokeWidth(s * 0.07f);
-                cv.drawArc(new android.graphics.RectF(cx - r, cy - r, cx + r, cy + r), -90f, 270f, false, p);
-                p.setStyle(android.graphics.Paint.Style.FILL);
-                android.graphics.Path a = new android.graphics.Path();
-                a.moveTo(cx - s * 0.13f, cy - r);
-                a.lineTo(cx + s * 0.05f, cy - r - s * 0.12f);
-                a.lineTo(cx + s * 0.05f, cy - r + s * 0.12f);
-                a.close();
-                cv.drawPath(a, p);
-                cv.restore();
-                p.setTextAlign(android.graphics.Paint.Align.CENTER);
-                p.setTextSize(s * 0.26f);
-                p.setFakeBoldText(true);
-                cv.drawText("10", cx, cy + s * 0.09f, p);
-            }
-        }
+    private void stopCasting() {
+        final String c = activeControl;
+        activeControl = null;
+        paused = false;
+        loopToken++;
+        castUrl = "";
+        castTitle = "";
+        castClipSecs = 0;
+        castClipStart = -1;
+        castBackdrop = "";
+        castPoster = "";
+        save();
+        closeController();
+        if (c == null) return;
+        pool.execute(() -> {
+            try { soap(c, "Stop", "<InstanceID>0</InstanceID>"); } catch (Exception ignore) {}
+        });
     }
 
-    private RemoteIcon playIcon;
-
-    private View remoteRow() {
-        android.widget.LinearLayout row = new android.widget.LinearLayout(act);
-        row.setOrientation(android.widget.LinearLayout.HORIZONTAL);
-        row.setGravity(android.view.Gravity.CENTER);
-        android.widget.LinearLayout.LayoutParams rl = new android.widget.LinearLayout.LayoutParams(
-            android.view.ViewGroup.LayoutParams.MATCH_PARENT, android.view.ViewGroup.LayoutParams.WRAP_CONTENT);
-        rl.topMargin = dp(16);
-        row.setLayoutParams(rl);
-
-        RemoteIcon back = new RemoteIcon(act, 0);
-        RemoteIcon fwd = new RemoteIcon(act, 3);
-        playIcon = new RemoteIcon(act, 1);
-        playIcon.paused = paused;
-        android.graphics.drawable.GradientDrawable circle = new android.graphics.drawable.GradientDrawable();
-        circle.setShape(android.graphics.drawable.GradientDrawable.OVAL);
-        circle.setColor(0xFF2A2A2A);
-        playIcon.setBackground(circle);
-
-        android.widget.LinearLayout.LayoutParams sm1 = new android.widget.LinearLayout.LayoutParams(dp(60), dp(60));
-        sm1.setMargins(dp(14), 0, dp(14), 0);
-        android.widget.LinearLayout.LayoutParams sm2 = new android.widget.LinearLayout.LayoutParams(dp(60), dp(60));
-        sm2.setMargins(dp(14), 0, dp(14), 0);
-        android.widget.LinearLayout.LayoutParams big = new android.widget.LinearLayout.LayoutParams(dp(76), dp(76));
-        big.setMargins(dp(14), 0, dp(14), 0);
-        row.addView(back, sm1);
-        row.addView(playIcon, big);
-        row.addView(fwd, sm2);
-
-        back.setOnClickListener(v -> seekBy(-10));
-        fwd.setOnClickListener(v -> seekBy(10));
-        playIcon.setOnClickListener(v -> {
-            togglePause();
-            playIcon.paused = paused;
-            playIcon.invalidate();
+    private void togglePause() {
+        final String c = activeControl;
+        if (c == null) return;
+        final boolean pause = !paused;
+        paused = pause;
+        save();
+        pool.execute(() -> {
+            try {
+                soap(c, pause ? "Pause" : "Play",
+                    pause ? "<InstanceID>0</InstanceID>" : "<InstanceID>0</InstanceID><Speed>1</Speed>");
+            } catch (Exception e) {
+                toast("The TV did not respond");
+            }
         });
-        return row;
     }
 
     private static int parseTime(String t) {
@@ -215,65 +988,7 @@ public class CastHelper {
     }
 
     private static String fmtTime(int sec) {
-        return String.format(java.util.Locale.US, "%d:%02d:%02d", sec / 3600, (sec % 3600) / 60, sec % 60);
-    }
-
-    private void seekBy(final int delta) {
-        final String c = activeControl;
-        if (c == null) return;
-        pool.execute(() -> {
-            try {
-                String info = soap(c, "GetPositionInfo", "<InstanceID>0</InstanceID>");
-                Matcher m = Pattern.compile("(?s)<RelTime>(.*?)</RelTime>").matcher(info);
-                int pos = m.find() ? parseTime(m.group(1).trim()) : -1;
-                if (pos < 0) throw new Exception("no position");
-                String target = fmtTime(Math.max(0, pos + delta));
-                try {
-                    soap(c, "Seek", "<InstanceID>0</InstanceID><Unit>REL_TIME</Unit><Target>" + target + "</Target>");
-                } catch (Exception e1) {
-                    soap(c, "Seek", "<InstanceID>0</InstanceID><Unit>ABS_TIME</Unit><Target>" + target + "</Target>");
-                }
-            } catch (Exception e) {
-                ui.post(() -> Toast.makeText(act, "This TV doesn't support skipping", Toast.LENGTH_SHORT).show());
-            }
-        });
-    }
-
-    private volatile int mediaClipSecs = 0;
-    private volatile long loopToken = 0;
-
-    // Preview clips from the shorts pager: the TV loops a short window of the file
-    @JavascriptInterface
-    public void castClip(String url, String title, int clipSecs) {
-        if (url != null && !url.isEmpty()) {
-            mediaUrl = url;
-            mediaTitle = title == null ? "" : title;
-        }
-        mediaClipSecs = clipSecs;
-        ui.post(() -> onTap());
-    }
-
-    @JavascriptInterface
-    public boolean sendClip(String url, String title, int clipSecs) {
-        final String c = activeControl;
-        if (c == null || url == null || url.isEmpty()) return false;
-        final String t = title == null ? "" : title;
-        mediaUrl = url;
-        mediaTitle = t;
-        mediaClipSecs = clipSecs;
-        paused = false;
-        final String u = url;
-        final int clip = clipSecs;
-        loopToken++;
-        pool.execute(() -> {
-            try {
-                pushMedia(c, u, t);
-                if (clip > 0) startClipLoop(c, clip);
-            } catch (Exception e) {
-                ui.post(() -> Toast.makeText(act, "Could not send to TV", Toast.LENGTH_SHORT).show());
-            }
-        });
-        return true;
+        return String.format(Locale.US, "%d:%02d:%02d", sec / 3600, (sec % 3600) / 60, sec % 60);
     }
 
     private static int readTime(String xml, String tag) {
@@ -290,28 +1005,78 @@ public class CastHelper {
         }
     }
 
-    private void startClipLoop(final String control, final int clipSecs) {
+    private void seekBy(final int delta) {
+        final String c = activeControl;
+        if (c == null) return;
+        pool.execute(() -> {
+            try {
+                String info = soap(c, "GetPositionInfo", "<InstanceID>0</InstanceID>");
+                int pos = readTime(info, "RelTime");
+                if (pos < 0) throw new Exception("no position");
+                seekTo(c, Math.max(0, pos + delta));
+            } catch (Exception e) {
+                toast("This TV doesn't support skipping");
+            }
+        });
+    }
+
+    // Loops a short window of the file on the TV: same link, only seeks, no backend calls
+    private void startClipLoop(final String control, final int clipSecs, final int startArg) {
         final long token = ++loopToken;
         pool.execute(() -> {
             try {
-                int dur = -1;
-                for (int i = 0; i < 15 && token == loopToken; i++) {
-                    Thread.sleep(1000);
-                    String info = soap(control, "GetPositionInfo", "<InstanceID>0</InstanceID>");
-                    dur = readTime(info, "TrackDuration");
-                    if (dur > 0) break;
+                int start = startArg;
+                if (start < 0) {
+                    int dur = -1;
+                    for (int i = 0; i < 15 && token == loopToken; i++) {
+                        Thread.sleep(1000);
+                        try {
+                            String info = soap(control, "GetPositionInfo", "<InstanceID>0</InstanceID>");
+                            dur = readTime(info, "TrackDuration");
+                        } catch (Exception ignore) {
+                        }
+                        if (dur > 0) break;
+                    }
+                    start = dur > 0 ? (int) (dur * 0.27) : 0;
+                } else {
+                    Thread.sleep(1500);
                 }
                 if (token != loopToken) return;
-                final int start = dur > 0 ? (int) (dur * 0.27) : 0;
-                if (start > 2) seekTo(control, start);
+                loopStart = start;
+                toast("Clip loop: start " + fmtTime(start) + ", " + clipSecs + "s");
+                boolean ok = false;
+                String err = "";
+                for (int i = 0; i < 6 && token == loopToken && !ok; i++) {
+                    try {
+                        seekTo(control, start);
+                        ok = true;
+                    } catch (Exception e) {
+                        err = String.valueOf(e.getMessage());
+                        Thread.sleep(1000);
+                    }
+                }
+                if (!ok) {
+                    toast("TV can't seek: " + err);
+                    return;
+                }
                 long lastSeek = System.currentTimeMillis();
                 while (token == loopToken && control.equals(activeControl)) {
                     Thread.sleep(1000);
                     if (paused) continue;
-                    String info = soap(control, "GetPositionInfo", "<InstanceID>0</InstanceID>");
-                    int pos = readTime(info, "RelTime");
-                    if (pos >= 0 && pos >= start + clipSecs && System.currentTimeMillis() - lastSeek > 3000) {
-                        seekTo(control, start);
+                    int pos = -1;
+                    try {
+                        pos = readTime(soap(control, "GetPositionInfo", "<InstanceID>0</InstanceID>"), "RelTime");
+                    } catch (Exception ignore) {
+                    }
+                    long since = System.currentTimeMillis() - lastSeek;
+                    boolean due = pos >= 0 ? (pos >= start + clipSecs && since > 3000)
+                                           : since >= (clipSecs + 1) * 1000L;
+                    if (due) {
+                        try {
+                            seekTo(control, start);
+                        } catch (Exception e) {
+                            toast("Loop seek failed: " + e.getMessage());
+                        }
                         lastSeek = System.currentTimeMillis();
                     }
                 }
@@ -320,150 +1085,7 @@ public class CastHelper {
         });
     }
 
-    private void togglePause() {
-        final String c = activeControl;
-        if (c == null) return;
-        final boolean pause = !paused;
-        paused = pause;
-        pool.execute(() -> {
-            try {
-                soap(c, pause ? "Pause" : "Play",
-                    pause ? "<InstanceID>0</InstanceID>" : "<InstanceID>0</InstanceID><Speed>1</Speed>");
-            } catch (Exception ignore) {
-            }
-        });
-    }
-
-    public void attach(View b) {
-        b.setOnTouchListener((v, e) -> {
-            if (e.getAction() == MotionEvent.ACTION_UP) onTap();
-            return true;
-        });
-    }
-
-    private int dp(int v) {
-        return (int) (v * act.getResources().getDisplayMetrics().density);
-    }
-
-    private void closeSheet() {
-        android.app.Dialog d = sheet;
-        sheet = null;
-        if (d != null) { try { d.dismiss(); } catch (Exception ignore) {} }
-    }
-
-    private void openSheet(String title, String status) {
-        closeSheet();
-        android.widget.LinearLayout box = new android.widget.LinearLayout(act);
-        box.setOrientation(android.widget.LinearLayout.VERTICAL);
-        box.setPadding(dp(20), dp(20), dp(20), dp(28));
-        android.graphics.drawable.GradientDrawable bg = new android.graphics.drawable.GradientDrawable();
-        bg.setColor(0xFF1A1A1A);
-        float r = dp(16);
-        bg.setCornerRadii(new float[]{r, r, r, r, 0, 0, 0, 0});
-        box.setBackground(bg);
-
-        android.widget.TextView t = new android.widget.TextView(act);
-        t.setText(title);
-        t.setTextColor(0xFFFFFFFF);
-        t.setTextSize(17);
-        t.setTypeface(null, android.graphics.Typeface.BOLD);
-        box.addView(t);
-
-        sheetStatus = new android.widget.TextView(act);
-        sheetStatus.setText(status);
-        sheetStatus.setTextColor(0xFFAAAAAA);
-        sheetStatus.setTextSize(13);
-        sheetStatus.setPadding(0, dp(8), 0, 0);
-        box.addView(sheetStatus);
-
-        sheetList = new android.widget.LinearLayout(act);
-        sheetList.setOrientation(android.widget.LinearLayout.VERTICAL);
-        box.addView(sheetList);
-
-        final android.app.Dialog d = new android.app.Dialog(act, android.R.style.Theme_Translucent_NoTitleBar);
-        d.setContentView(box);
-        d.setCanceledOnTouchOutside(true);
-        android.view.Window w = d.getWindow();
-        if (w != null) {
-            w.setLayout(android.view.ViewGroup.LayoutParams.MATCH_PARENT, android.view.ViewGroup.LayoutParams.WRAP_CONTENT);
-            w.setGravity(android.view.Gravity.BOTTOM);
-            w.addFlags(android.view.WindowManager.LayoutParams.FLAG_DIM_BEHIND);
-            w.setDimAmount(0.6f);
-        }
-        d.setOnDismissListener(x -> { if (sheet == d) sheet = null; });
-        sheet = d;
-        d.show();
-    }
-
-    private android.view.View sheetBtn(String text, boolean outline, final Runnable action) {
-        android.widget.TextView t = new android.widget.TextView(act);
-        t.setText(text);
-        t.setTextColor(outline ? 0xFFCCCCCC : 0xFFFFFFFF);
-        t.setTextSize(outline ? 14 : 15);
-        t.setPadding(dp(16), dp(14), dp(16), dp(14));
-        android.graphics.drawable.GradientDrawable g = new android.graphics.drawable.GradientDrawable();
-        g.setCornerRadius(dp(10));
-        if (outline) {
-            g.setColor(0x00000000);
-            g.setStroke(dp(1), 0xFF444444);
-        } else {
-            g.setColor(0xFF2A2A2A);
-        }
-        t.setBackground(g);
-        android.widget.LinearLayout.LayoutParams lp = new android.widget.LinearLayout.LayoutParams(
-            outline ? android.view.ViewGroup.LayoutParams.WRAP_CONTENT : android.view.ViewGroup.LayoutParams.MATCH_PARENT,
-            android.view.ViewGroup.LayoutParams.WRAP_CONTENT);
-        lp.topMargin = dp(10);
-        t.setLayoutParams(lp);
-        t.setOnClickListener(v -> action.run());
-        return t;
-    }
-
-    private void onTap() {
-        if (activeControl != null) {
-            openSheet("Casting to TV", activeName.isEmpty() ? "" : "Playing on " + activeName);
-            sheetList.addView(remoteRow());
-            if (!mediaUrl.isEmpty()) {
-                sheetList.addView(sheetBtn("Cast to another TV", false, () -> startSearch()));
-            }
-            sheetList.addView(sheetBtn("Stop casting", true, () -> {
-                closeSheet();
-                stopCasting();
-                Toast.makeText(act, "Stopped casting", Toast.LENGTH_SHORT).show();
-            }));
-            return;
-        }
-        if (mediaUrl.isEmpty()) {
-            Toast.makeText(act, "Start a movie first, then tap here to cast it to your TV", Toast.LENGTH_LONG).show();
-            return;
-        }
-        startSearch();
-    }
-
-    private void startSearch() {
-        openSheet("Cast to TV", "Searching for TVs...");
-        discover();
-    }
-
-    private void showDevices(final List<String[]> list) {
-        if (sheet == null) return;
-        sheetList.removeAllViews();
-        if (list.isEmpty()) {
-            sheetStatus.setText("No TVs found. Check that the phone and TV are on the same Wi-Fi and that media streaming (DLNA) is on.");
-            return;
-        }
-        sheetStatus.setText("Tap your TV");
-        for (final String[] d : list) {
-            sheetList.addView(sheetBtn(d[0], false, () -> { closeSheet(); play(d); }));
-        }
-        if (activeControl != null) {
-            sheetList.addView(sheetBtn("Stop casting", true, () -> { closeSheet(); stopCasting(); }));
-        }
-    }
-
-    private void pausePhone() {
-        web.evaluateJavascript("document.querySelectorAll('video').forEach(function(v){try{v.pause()}catch(e){}})", null);
-    }
+    // ---------------------------------------------------------------- DLNA plumbing
 
     private void discover() {
         pool.execute(() -> {
@@ -517,7 +1139,6 @@ public class CastHelper {
         });
     }
 
-    // returns {friendly name, AVTransport control URL}
     private String[] describe(String loc) throws Exception {
         String xml = http(loc, "GET", null, null);
         Matcher n = Pattern.compile("(?s)<friendlyName>(.*?)</friendlyName>").matcher(xml);
@@ -532,50 +1153,6 @@ public class CastHelper {
             }
         }
         return null;
-    }
-
-    private void play(final String[] dev) {
-        final String url = mediaUrl;
-        final String title = mediaTitle;
-        final int clip = mediaClipSecs;
-        Toast.makeText(act, "Sending to " + dev[0] + "...", Toast.LENGTH_SHORT).show();
-        pool.execute(() -> {
-            try {
-                String mime = url.toLowerCase().contains(".m3u8") ? "application/vnd.apple.mpegurl" : "video/mp4";
-                String didl = "<DIDL-Lite xmlns=\"urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/\" "
-                    + "xmlns:dc=\"http://purl.org/dc/elements/1.1/\" "
-                    + "xmlns:upnp=\"urn:schemas-upnp-org:metadata-1-0/upnp/\">"
-                    + "<item id=\"0\" parentID=\"-1\" restricted=\"1\">"
-                    + "<dc:title>" + esc(title) + "</dc:title>"
-                    + "<upnp:class>object.item.videoItem</upnp:class>"
-                    + "<res protocolInfo=\"http-get:*:" + mime + ":*\">" + esc(url) + "</res>"
-                    + "</item></DIDL-Lite>";
-                soap(dev[1], "SetAVTransportURI",
-                    "<InstanceID>0</InstanceID><CurrentURI>" + esc(url) + "</CurrentURI>"
-                        + "<CurrentURIMetaData>" + esc(didl) + "</CurrentURIMetaData>");
-                Thread.sleep(500);
-                soap(dev[1], "Play", "<InstanceID>0</InstanceID><Speed>1</Speed>");
-                activeControl = dev[1]; activeName = dev[0]; paused = false;
-                if (clip > 0) startClipLoop(dev[1], clip); else loopToken++;
-                ui.post(() -> {
-                    Toast.makeText(act, "Playing on " + dev[0], Toast.LENGTH_SHORT).show();
-                    pausePhone();
-                });
-            } catch (Exception e) {
-                ui.post(() -> Toast.makeText(act, "Could not play on this TV", Toast.LENGTH_LONG).show());
-            }
-        });
-    }
-
-    private void stopCasting() {
-        final String c = activeControl;
-        activeControl = null;
-        paused = false;
-        loopToken++;
-        if (c == null) return;
-        pool.execute(() -> {
-            try { soap(c, "Stop", "<InstanceID>0</InstanceID>"); } catch (Exception ignore) {}
-        });
     }
 
     private String soap(String controlUrl, String action, String args) throws Exception {
