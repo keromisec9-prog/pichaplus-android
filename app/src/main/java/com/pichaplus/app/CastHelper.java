@@ -53,6 +53,7 @@ public class CastHelper {
     // The page calls this when a movie starts (url) and when the player closes (empty)
     @JavascriptInterface
     public void setMedia(String url, String title) {
+        mediaClipSecs = 0;
         mediaUrl = url == null ? "" : url;
         mediaTitle = title == null ? "" : title;
     }
@@ -60,6 +61,7 @@ public class CastHelper {
     // One tap from a page button: opens the TV picker (or the remote sheet if already casting)
     @JavascriptInterface
     public void castNow(String url, String title) {
+        mediaClipSecs = 0;
         if (url != null && !url.isEmpty()) {
             mediaUrl = url;
             mediaTitle = title == null ? "" : title;
@@ -233,6 +235,87 @@ public class CastHelper {
                 }
             } catch (Exception e) {
                 ui.post(() -> Toast.makeText(act, "This TV doesn't support skipping", Toast.LENGTH_SHORT).show());
+            }
+        });
+    }
+
+    private volatile int mediaClipSecs = 0;
+    private volatile long loopToken = 0;
+
+    // Preview clips from the shorts pager: the TV loops a short window of the file
+    @JavascriptInterface
+    public void castClip(String url, String title, int clipSecs) {
+        if (url != null && !url.isEmpty()) {
+            mediaUrl = url;
+            mediaTitle = title == null ? "" : title;
+        }
+        mediaClipSecs = clipSecs;
+        ui.post(() -> onTap());
+    }
+
+    @JavascriptInterface
+    public boolean sendClip(String url, String title, int clipSecs) {
+        final String c = activeControl;
+        if (c == null || url == null || url.isEmpty()) return false;
+        final String t = title == null ? "" : title;
+        mediaUrl = url;
+        mediaTitle = t;
+        mediaClipSecs = clipSecs;
+        paused = false;
+        final String u = url;
+        final int clip = clipSecs;
+        loopToken++;
+        pool.execute(() -> {
+            try {
+                pushMedia(c, u, t);
+                if (clip > 0) startClipLoop(c, clip);
+            } catch (Exception e) {
+                ui.post(() -> Toast.makeText(act, "Could not send to TV", Toast.LENGTH_SHORT).show());
+            }
+        });
+        return true;
+    }
+
+    private static int readTime(String xml, String tag) {
+        Matcher m = Pattern.compile("(?s)<" + tag + ">(.*?)</" + tag + ">").matcher(xml);
+        return m.find() ? parseTime(m.group(1).trim()) : -1;
+    }
+
+    private void seekTo(String control, int secs) throws Exception {
+        String t = fmtTime(secs);
+        try {
+            soap(control, "Seek", "<InstanceID>0</InstanceID><Unit>REL_TIME</Unit><Target>" + t + "</Target>");
+        } catch (Exception e1) {
+            soap(control, "Seek", "<InstanceID>0</InstanceID><Unit>ABS_TIME</Unit><Target>" + t + "</Target>");
+        }
+    }
+
+    private void startClipLoop(final String control, final int clipSecs) {
+        final long token = ++loopToken;
+        pool.execute(() -> {
+            try {
+                int dur = -1;
+                for (int i = 0; i < 15 && token == loopToken; i++) {
+                    Thread.sleep(1000);
+                    String info = soap(control, "GetPositionInfo", "<InstanceID>0</InstanceID>");
+                    dur = readTime(info, "TrackDuration");
+                    if (dur > 0) break;
+                }
+                if (token != loopToken) return;
+                final int start = dur > 0 ? (int) (dur * 0.27) : 0;
+                if (start > 2) seekTo(control, start);
+                long lastSeek = System.currentTimeMillis();
+                while (token == loopToken && control.equals(activeControl)) {
+                    Thread.sleep(1000);
+                    if (paused) continue;
+                    String info = soap(control, "GetPositionInfo", "<InstanceID>0</InstanceID>");
+                    int pos = readTime(info, "RelTime");
+                    if (pos >= 0 && pos >= start + clipSecs && System.currentTimeMillis() - lastSeek > 3000) {
+                        seekTo(control, start);
+                        lastSeek = System.currentTimeMillis();
+                    }
+                }
+            } catch (Exception ignore) {
             }
         });
     }
@@ -454,6 +537,7 @@ public class CastHelper {
     private void play(final String[] dev) {
         final String url = mediaUrl;
         final String title = mediaTitle;
+        final int clip = mediaClipSecs;
         Toast.makeText(act, "Sending to " + dev[0] + "...", Toast.LENGTH_SHORT).show();
         pool.execute(() -> {
             try {
@@ -472,6 +556,7 @@ public class CastHelper {
                 Thread.sleep(500);
                 soap(dev[1], "Play", "<InstanceID>0</InstanceID><Speed>1</Speed>");
                 activeControl = dev[1]; activeName = dev[0]; paused = false;
+                if (clip > 0) startClipLoop(dev[1], clip); else loopToken++;
                 ui.post(() -> {
                     Toast.makeText(act, "Playing on " + dev[0], Toast.LENGTH_SHORT).show();
                     pausePhone();
@@ -486,6 +571,7 @@ public class CastHelper {
         final String c = activeControl;
         activeControl = null;
         paused = false;
+        loopToken++;
         if (c == null) return;
         pool.execute(() -> {
             try { soap(c, "Stop", "<InstanceID>0</InstanceID>"); } catch (Exception ignore) {}
