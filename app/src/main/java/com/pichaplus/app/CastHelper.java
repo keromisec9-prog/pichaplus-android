@@ -586,7 +586,7 @@ public class CastHelper {
         bar.setPadding(dp(16), dp(30), dp(16), 0);
         Glyph back = new Glyph(act, Glyph.BACK);
         bar.addView(back, new LinearLayout.LayoutParams(dp(26), dp(26)));
-        TextView ttl = text(shownTitle, 20, 0xFFFFFFFF, true);
+        TextView ttl = text(shownTitle, 14, 0xFFFFFFFF, true);
         ttl.setSingleLine(true);
         ttl.setEllipsize(TextUtils.TruncateAt.END);
         LinearLayout.LayoutParams tl = new LinearLayout.LayoutParams(0, WRAP, 1f);
@@ -835,10 +835,7 @@ public class CastHelper {
         final String c = activeControl;
         if (c == null) return;
         int total = castClipSecs > 0 ? castClipSecs : curDur;
-        if (total <= 0) {
-            toast("This TV doesn't report the length");
-            return;
-        }
+        if (total <= 0) return;
         final int target = (int) (f * total) + (castClipSecs > 0 ? loopStart : 0);
         pool.execute(() -> {
             try {
