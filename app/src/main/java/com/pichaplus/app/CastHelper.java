@@ -285,6 +285,11 @@ public class CastHelper {
 
     private void onTap() {
         if (activeControl != null) {
+            if (!mediaUrl.isEmpty() && !mediaUrl.equals(castUrl)) {
+                closeController();
+                play(new String[]{activeName, activeControl});
+                return;
+            }
             showController();
             return;
         }
@@ -907,6 +912,8 @@ public class CastHelper {
             + "<upnp:class>object.item.videoItem</upnp:class>"
             + "<res protocolInfo=\"http-get:*:" + mime + ":*\">" + esc(url) + "</res>"
             + "</item></DIDL-Lite>";
+        try { soap(control, "Stop", "<InstanceID>0</InstanceID>"); } catch (Exception ignore) {}
+        Thread.sleep(600);
         soap(control, "SetAVTransportURI",
             "<InstanceID>0</InstanceID><CurrentURI>" + esc(url) + "</CurrentURI>"
                 + "<CurrentURIMetaData>" + esc(didl) + "</CurrentURIMetaData>");
