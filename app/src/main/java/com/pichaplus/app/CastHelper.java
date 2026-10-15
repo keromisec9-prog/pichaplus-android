@@ -273,6 +273,7 @@ public class CastHelper {
         castUrl = prefs.getString("url", "");
         castTitle = prefs.getString("title", "");
         castClipSecs = prefs.getInt("clip", 0);
+        lastPos = prefs.getInt("pos", 0);
         castClipStart = prefs.getInt("clipStart", -1);
         castBackdrop = prefs.getString("backdrop", "");
         castPoster = prefs.getString("poster", "");
@@ -856,11 +857,25 @@ public class CastHelper {
         inApp.addView(text("Play in app instead", 14, 0xFFFFFFFF, true), lp(WRAP, WRAP, 0, 0, 0, 0));
         panel.addView(inApp, lp(MATCH, WRAP, 0, 8, 0, 0));
         inApp.setOnClickListener(v -> {
-            final int at = lastPos;
-            closeController();
-            stopCasting();
-            web.post(() -> web.evaluateJavascript(
-                "window.__playInApp&&window.__playInApp(" + at + ")", null));
+            final String c = activeControl;
+            final int fallback = lastPos;
+            pool.execute(() -> {
+                int at = fallback;
+                try {
+                    if (c != null) {
+                        int p = readTime(soap(c, "GetPositionInfo", "<InstanceID>0</InstanceID>"), "RelTime");
+                        if (p > 0) at = p;
+                    }
+                } catch (Exception ignore) {
+                }
+                final int fat = at;
+                ui.post(() -> {
+                    closeController();
+                    stopCasting();
+                    web.post(() -> web.evaluateJavascript(
+                        "window.__playInApp&&window.__playInApp(" + fat + ")", null));
+                });
+            });
         });
         panel.addView(stop, lp(MATCH, WRAP, 0, 8, 0, 0));
         stop.setOnClickListener(v -> {
@@ -905,6 +920,7 @@ public class CastHelper {
                     }
                     final int dur = d0;
                     final int p2 = pos;
+                    if (pos > 0 && pos % 5 == 0) prefs.edit().putInt("pos", pos).apply();
                     Matcher um = Pattern.compile("(?s)<TrackURI>(.*?)</TrackURI>").matcher(info);
                     String cur = um.find() ? um.group(1).trim() : "";
                     fails = 0;
