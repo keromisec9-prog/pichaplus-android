@@ -62,6 +62,7 @@ public class CastHelper {
     private static final int CARD = 0xFF181B22;
     private static final int LINE = 0xFF2A2E38;
     private static final int RED = 0xFFE8344E;
+    private static final int GOLD = 0xFFE5B93C;
     private static final int GREEN = 0xFF2ED47A;
     private static final int GREY = 0xFF9AA0AC;
     private static final int IC_PLAY = com.google.android.gms.cast.framework.R.drawable.cast_ic_mini_controller_play_large;
@@ -569,92 +570,51 @@ public class CastHelper {
         root.setOrientation(LinearLayout.VERTICAL);
         root.setBackgroundColor(BG);
 
-        // ----- top area: backdrop, fade, top bar, mini card
         FrameLayout top = new FrameLayout(act);
         root.addView(top, new LinearLayout.LayoutParams(MATCH, 0, 1f));
-
         final ImageView backdrop = new ImageView(act);
         backdrop.setScaleType(ImageView.ScaleType.CENTER_CROP);
         top.addView(backdrop, new FrameLayout.LayoutParams(MATCH, MATCH));
         View fade = new View(act);
         fade.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
-            new int[]{0xAA000000, 0x66000000, BG}));
+            new int[]{0x99000000, 0x11000000, 0x00000000, 0x66000000}));
         top.addView(fade, new FrameLayout.LayoutParams(MATCH, MATCH));
 
         LinearLayout bar = new LinearLayout(act);
         bar.setOrientation(LinearLayout.HORIZONTAL);
         bar.setGravity(Gravity.CENTER_VERTICAL);
-        bar.setPadding(dp(18), dp(34), dp(18), 0);
+        bar.setPadding(dp(16), dp(30), dp(16), 0);
         Glyph back = new Glyph(act, Glyph.BACK);
-        bar.addView(back, new LinearLayout.LayoutParams(dp(30), dp(30)));
+        bar.addView(back, new LinearLayout.LayoutParams(dp(26), dp(26)));
         TextView ttl = text(shownTitle, 20, 0xFFFFFFFF, true);
         ttl.setSingleLine(true);
         ttl.setEllipsize(TextUtils.TruncateAt.END);
         LinearLayout.LayoutParams tl = new LinearLayout.LayoutParams(0, WRAP, 1f);
-        tl.setMargins(dp(16), 0, dp(12), 0);
+        tl.setMargins(dp(14), 0, dp(10), 0);
         bar.addView(ttl, tl);
-        bar.addView(new Glyph(act, Glyph.CAST), new LinearLayout.LayoutParams(dp(28), dp(28)));
+        bar.addView(new Glyph(act, Glyph.CAST), new LinearLayout.LayoutParams(dp(24), dp(24)));
         top.addView(bar, new FrameLayout.LayoutParams(MATCH, WRAP, Gravity.TOP));
         back.setOnClickListener(v -> closeController());
 
-        LinearLayout card = new LinearLayout(act);
-        card.setOrientation(LinearLayout.HORIZONTAL);
-        card.setGravity(Gravity.CENTER_VERTICAL);
-        card.setPadding(dp(6), dp(6), dp(14), dp(6));
-        card.setBackground(round(0xCC12141A, 14, 1, LINE));
-        FrameLayout thumbBox = new FrameLayout(act);
-        final ImageView poster = new ImageView(act);
-        poster.setScaleType(ImageView.ScaleType.CENTER_CROP);
-        poster.setBackgroundColor(0xFF22252D);
-        poster.setClipToOutline(true);
-        poster.setOutlineProvider(new ViewOutlineProvider() {
-            @Override
-            public void getOutline(View v, Outline o) {
-                o.setRoundRect(0, 0, v.getWidth(), v.getHeight(), dp(10));
-            }
-        });
-        thumbBox.addView(poster, new FrameLayout.LayoutParams(MATCH, MATCH));
-        thumbBox.addView(new Glyph(act, Glyph.PLAY), new FrameLayout.LayoutParams(dp(26), dp(26), Gravity.CENTER));
-        card.addView(thumbBox, new LinearLayout.LayoutParams(dp(128), dp(76)));
-
-        LinearLayout info = new LinearLayout(act);
-        info.setOrientation(LinearLayout.VERTICAL);
-        info.setPadding(dp(16), 0, 0, 0);
-        TextView cardTitle = text(shownTitle, 15, 0xFFFFFFFF, true);
-        cardTitle.setSingleLine(true);
-        cardTitle.setEllipsize(TextUtils.TruncateAt.END);
-        info.addView(cardTitle);
-        cCardBar = new ProgressBar(act, null, android.R.attr.progressBarStyleHorizontal);
-        cCardBar.setMax(1000);
-        cCardBar.setProgressTintList(ColorStateList.valueOf(RED));
-        cCardBar.setProgressBackgroundTintList(ColorStateList.valueOf(0xFF3A3D46));
-        info.addView(cCardBar, lp(MATCH, dp(6), 0, 10, 0, 0));
-        cCardTime = text("--:-- / --:--", 12, 0xFFD5D8DE, false);
-        cCardTime.setGravity(Gravity.END);
-        info.addView(cCardTime, lp(MATCH, WRAP, 0, 8, 0, 0));
-        card.addView(info, new LinearLayout.LayoutParams(0, WRAP, 1f));
-        FrameLayout.LayoutParams cardLp = new FrameLayout.LayoutParams(MATCH, WRAP, Gravity.BOTTOM);
-        cardLp.setMargins(dp(18), 0, dp(18), dp(22));
-        top.addView(card, cardLp);
-
-        // ----- bottom sheet
         final LinearLayout panel = new LinearLayout(act);
         panel.setOrientation(LinearLayout.VERTICAL);
         panel.setGravity(Gravity.CENTER_HORIZONTAL);
         GradientDrawable pbg = new GradientDrawable();
         pbg.setColor(PANEL);
-        float pr = dp(28);
+        float pr = dp(22);
         pbg.setCornerRadii(new float[]{pr, pr, pr, pr, 0, 0, 0, 0});
         pbg.setStroke(dp(1), 0xFF1E2128);
         panel.setBackground(pbg);
-        panel.setPadding(dp(20), 0, dp(20), dp(24));
-        root.addView(panel, new LinearLayout.LayoutParams(MATCH, WRAP));
+        panel.setPadding(dp(16), 0, dp(16), dp(12));
+        LinearLayout.LayoutParams plp = new LinearLayout.LayoutParams(MATCH, WRAP);
+        plp.topMargin = -dp(18);
+        root.addView(panel, plp);
 
         FrameLayout handleBox = new FrameLayout(act);
         View handle = new View(act);
         handle.setBackground(round(0xFF555966, 2, 0, 0));
-        handleBox.addView(handle, new FrameLayout.LayoutParams(dp(42), dp(4), Gravity.CENTER));
-        panel.addView(handleBox, new LinearLayout.LayoutParams(MATCH, dp(30)));
+        handleBox.addView(handle, new FrameLayout.LayoutParams(dp(34), dp(4), Gravity.CENTER));
+        panel.addView(handleBox, new LinearLayout.LayoutParams(MATCH, dp(20)));
         handleBox.setOnTouchListener(new View.OnTouchListener() {
             float startY;
             @Override
@@ -667,7 +627,7 @@ public class CastHelper {
                     panel.setTranslationY(Math.max(0f, e.getRawY() - startY));
                     return true;
                 } else if (a == MotionEvent.ACTION_UP || a == MotionEvent.ACTION_CANCEL) {
-                    if (e.getRawY() - startY > dp(110)) closeController();
+                    if (e.getRawY() - startY > dp(90)) closeController();
                     else panel.animate().translationY(0f).setDuration(150).start();
                     return true;
                 }
@@ -675,17 +635,16 @@ public class CastHelper {
             }
         });
 
-        panel.addView(new Glyph(act, Glyph.CAST).color(GREEN), lp(dp(30), dp(30), 0, 10, 0, 0));
-        TextView head = text("Playing on " + prettyName(activeName), 23, 0xFFFFFFFF, true);
+        panel.addView(new Glyph(act, Glyph.CAST).color(GREEN), lp(dp(18), dp(18), 0, 2, 0, 0));
+        TextView head = text("Playing on " + prettyName(activeName), 16, 0xFFFFFFFF, true);
         head.setGravity(Gravity.CENTER);
-        panel.addView(head, lp(MATCH, WRAP, 0, 10, 0, 0));
-        TextView sub = text((shownTitle.isEmpty() ? "" : shownTitle + "   \u2022   ") + "Connected", 14, GREY, false);
+        panel.addView(head, lp(MATCH, WRAP, 0, 6, 0, 0));
+        TextView sub = text((shownTitle.isEmpty() ? "" : shownTitle + "  \u2022  ") + "Connected", 11, GREY, false);
         sub.setGravity(Gravity.CENTER);
         sub.setSingleLine(true);
         sub.setEllipsize(TextUtils.TruncateAt.END);
-        panel.addView(sub, lp(MATCH, WRAP, 0, 6, 0, 0));
+        panel.addView(sub, lp(MATCH, WRAP, 0, 3, 0, 0));
 
-        // controls
         LinearLayout controls = new LinearLayout(act);
         controls.setOrientation(LinearLayout.HORIZONTAL);
         controls.setGravity(Gravity.CENTER);
@@ -693,14 +652,14 @@ public class CastHelper {
         Glyph fwd = new Glyph(act, Glyph.FORWARD10);
         cPlay = new ImageView(act);
         cPlay.setScaleType(ImageView.ScaleType.FIT_CENTER);
-        cPlay.setPadding(dp(26), dp(26), dp(26), dp(26));
-        cPlay.setBackground(round(0xFF1B1E26, 44, 1, LINE));
+        cPlay.setPadding(dp(16), dp(16), dp(16), dp(16));
+        cPlay.setBackground(round(0xFF1B1E26, 28, 1, LINE));
         cPlay.setImageResource(paused ? IC_PLAY : IC_PAUSE);
         cPlay.setColorFilter(0xFFFFFFFF, PorterDuff.Mode.SRC_IN);
-        controls.addView(rew, lp(dp(58), dp(58), 22, 0, 22, 0));
-        controls.addView(cPlay, lp(dp(88), dp(88), 22, 0, 22, 0));
-        controls.addView(fwd, lp(dp(58), dp(58), 22, 0, 22, 0));
-        panel.addView(controls, lp(MATCH, WRAP, 0, 22, 0, 0));
+        controls.addView(rew, lp(dp(34), dp(34), 22, 0, 22, 0));
+        controls.addView(cPlay, lp(dp(56), dp(56), 22, 0, 22, 0));
+        controls.addView(fwd, lp(dp(34), dp(34), 22, 0, 22, 0));
+        panel.addView(controls, lp(MATCH, WRAP, 0, 10, 0, 0));
         rew.setOnClickListener(v -> seekBy(-10));
         fwd.setOnClickListener(v -> seekBy(10));
         cPlay.setOnClickListener(v -> {
@@ -708,17 +667,35 @@ public class CastHelper {
             cPlay.setImageResource(paused ? IC_PLAY : IC_PAUSE);
         });
 
-        // seek row
-        LinearLayout seekRow = new LinearLayout(act);
-        seekRow.setOrientation(LinearLayout.HORIZONTAL);
-        seekRow.setGravity(Gravity.CENTER_VERTICAL);
-        cElapsed = text("0:00", 14, 0xFFFFFFFF, false);
-        cRemain = text("--:--", 14, GREY, false);
+        LinearLayout card = new LinearLayout(act);
+        card.setOrientation(LinearLayout.HORIZONTAL);
+        card.setGravity(Gravity.CENTER_VERTICAL);
+        card.setPadding(dp(8), dp(8), dp(14), dp(8));
+        card.setBackground(round(CARD, 14, 1, LINE));
+        final ImageView poster = new ImageView(act);
+        poster.setScaleType(ImageView.ScaleType.CENTER_CROP);
+        poster.setBackgroundColor(0xFF22252D);
+        poster.setClipToOutline(true);
+        poster.setOutlineProvider(new ViewOutlineProvider() {
+            @Override
+            public void getOutline(View v, Outline o) {
+                o.setRoundRect(0, 0, v.getWidth(), v.getHeight(), dp(8));
+            }
+        });
+        card.addView(poster, new LinearLayout.LayoutParams(dp(92), dp(50)));
+        LinearLayout info = new LinearLayout(act);
+        info.setOrientation(LinearLayout.VERTICAL);
+        info.setPadding(dp(12), 0, 0, 0);
+        TextView cardTitle = text(shownTitle, 13, 0xFFFFFFFF, true);
+        cardTitle.setSingleLine(true);
+        cardTitle.setEllipsize(TextUtils.TruncateAt.END);
+        info.addView(cardTitle);
         cSeek = new SeekBar(act);
         cSeek.setMax(1000);
-        cSeek.setProgressTintList(ColorStateList.valueOf(RED));
+        cSeek.setThumb(null);
+        cSeek.setPadding(0, 0, 0, 0);
+        cSeek.setProgressTintList(ColorStateList.valueOf(GOLD));
         cSeek.setProgressBackgroundTintList(ColorStateList.valueOf(0xFF3A3D46));
-        cSeek.setThumbTintList(ColorStateList.valueOf(0xFFFFFFFF));
         cSeek.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override
             public void onProgressChanged(SeekBar sb, int progress, boolean fromUser) {
@@ -734,58 +711,57 @@ public class CastHelper {
                 seekToFraction(sb.getProgress() / 1000f);
             }
         });
-        seekRow.addView(cElapsed, new LinearLayout.LayoutParams(WRAP, WRAP));
-        seekRow.addView(cSeek, new LinearLayout.LayoutParams(0, WRAP, 1f));
-        seekRow.addView(cRemain, new LinearLayout.LayoutParams(WRAP, WRAP));
-        panel.addView(seekRow, lp(MATCH, WRAP, 0, 22, 0, 0));
+        info.addView(cSeek, lp(MATCH, dp(16), 0, 4, 0, 0));
+        cCardTime = text("--:-- / --:--", 11, 0xFFD5D8DE, false);
+        cCardTime.setGravity(Gravity.END);
+        info.addView(cCardTime, lp(MATCH, WRAP, 0, 0, 0, 0));
+        card.addView(info, new LinearLayout.LayoutParams(0, WRAP, 1f));
+        panel.addView(card, lp(MATCH, WRAP, 0, 12, 0, 0));
 
-        // device card
         LinearLayout devCard = new LinearLayout(act);
         devCard.setOrientation(LinearLayout.HORIZONTAL);
         devCard.setGravity(Gravity.CENTER_VERTICAL);
-        devCard.setPadding(dp(18), dp(14), dp(18), dp(14));
-        devCard.setBackground(round(CARD, 16, 1, LINE));
-        devCard.addView(new Glyph(act, Glyph.DEVICE), new LinearLayout.LayoutParams(dp(30), dp(30)));
+        devCard.setPadding(dp(14), dp(9), dp(14), dp(9));
+        devCard.setBackground(round(CARD, 14, 1, LINE));
+        devCard.addView(new Glyph(act, Glyph.DEVICE), new LinearLayout.LayoutParams(dp(22), dp(22)));
         LinearLayout devInfo = new LinearLayout(act);
         devInfo.setOrientation(LinearLayout.VERTICAL);
-        devInfo.setPadding(dp(16), 0, 0, 0);
-        devInfo.addView(text(capital(prettyName(activeName)), 17, 0xFFFFFFFF, true));
+        devInfo.setPadding(dp(12), 0, 0, 0);
+        devInfo.addView(text(capital(prettyName(activeName)), 14, 0xFFFFFFFF, true));
         LinearLayout stRow = new LinearLayout(act);
         stRow.setOrientation(LinearLayout.HORIZONTAL);
         stRow.setGravity(Gravity.CENTER_VERTICAL);
         View dot = new View(act);
         dot.setBackground(round(GREEN, 4, 0, 0));
-        stRow.addView(dot, new LinearLayout.LayoutParams(dp(8), dp(8)));
-        stRow.addView(text("Connected", 14, GREEN, false), lp(WRAP, WRAP, 8, 0, 0, 0));
-        devInfo.addView(stRow, lp(WRAP, WRAP, 0, 3, 0, 0));
+        stRow.addView(dot, new LinearLayout.LayoutParams(dp(6), dp(6)));
+        stRow.addView(text("Connected", 11, GREEN, false), lp(WRAP, WRAP, 6, 0, 0, 0));
+        devInfo.addView(stRow, lp(WRAP, WRAP, 0, 1, 0, 0));
         devCard.addView(devInfo, new LinearLayout.LayoutParams(0, WRAP, 1f));
-        devCard.addView(new Glyph(act, Glyph.CHEVRON).color(GREY), new LinearLayout.LayoutParams(dp(22), dp(22)));
-        panel.addView(devCard, lp(MATCH, WRAP, 0, 22, 0, 0));
+        devCard.addView(new Glyph(act, Glyph.CHEVRON).color(GREY), new LinearLayout.LayoutParams(dp(16), dp(16)));
+        panel.addView(devCard, lp(MATCH, WRAP, 0, 8, 0, 0));
         devCard.setOnClickListener(v -> toast("Connected to " + prettyName(activeName)));
 
-        // cast to another TV
         LinearLayout addCard = new LinearLayout(act);
         addCard.setOrientation(LinearLayout.HORIZONTAL);
         addCard.setGravity(Gravity.CENTER_VERTICAL);
-        addCard.setPadding(dp(18), dp(16), dp(18), dp(16));
-        addCard.setBackground(round(CARD, 16, 1, LINE));
-        addCard.addView(new Glyph(act, Glyph.DEVICE_ADD), new LinearLayout.LayoutParams(dp(30), dp(30)));
-        TextView addText = text("Cast to another TV", 17, 0xFFFFFFFF, true);
-        addCard.addView(addText, lp(0, WRAP, 16, 0, 0, 0));
+        addCard.setPadding(dp(14), dp(10), dp(14), dp(10));
+        addCard.setBackground(round(CARD, 14, 1, LINE));
+        addCard.addView(new Glyph(act, Glyph.DEVICE_ADD), new LinearLayout.LayoutParams(dp(22), dp(22)));
+        TextView addText = text("Cast to another TV", 14, 0xFFFFFFFF, true);
+        addCard.addView(addText, lp(0, WRAP, 12, 0, 0, 0));
         ((LinearLayout.LayoutParams) addText.getLayoutParams()).weight = 1f;
-        addCard.addView(new Glyph(act, Glyph.CHEVRON).color(GREY), new LinearLayout.LayoutParams(dp(22), dp(22)));
-        panel.addView(addCard, lp(MATCH, WRAP, 0, 12, 0, 0));
+        addCard.addView(new Glyph(act, Glyph.CHEVRON).color(GREY), new LinearLayout.LayoutParams(dp(16), dp(16)));
+        panel.addView(addCard, lp(MATCH, WRAP, 0, 8, 0, 0));
         addCard.setOnClickListener(v -> { closeController(); castAnother(); });
 
-        // stop casting
         LinearLayout stop = new LinearLayout(act);
         stop.setOrientation(LinearLayout.HORIZONTAL);
         stop.setGravity(Gravity.CENTER);
-        stop.setPadding(dp(16), dp(16), dp(16), dp(16));
-        stop.setBackground(round(0x00000000, 16, 2, 0xFF3A3E49));
-        stop.addView(new Glyph(act, Glyph.STOP), new LinearLayout.LayoutParams(dp(26), dp(26)));
-        stop.addView(text("Stop casting", 17, 0xFFFFFFFF, true), lp(WRAP, WRAP, 12, 0, 0, 0));
-        panel.addView(stop, lp(MATCH, WRAP, 0, 14, 0, 0));
+        stop.setPadding(dp(14), dp(10), dp(14), dp(10));
+        stop.setBackground(round(0x00000000, 14, 2, 0xFF3A3E49));
+        stop.addView(new Glyph(act, Glyph.STOP), new LinearLayout.LayoutParams(dp(20), dp(20)));
+        stop.addView(text("Stop casting", 14, 0xFFFFFFFF, true), lp(WRAP, WRAP, 10, 0, 0, 0));
+        panel.addView(stop, lp(MATCH, WRAP, 0, 8, 0, 0));
         stop.setOnClickListener(v -> {
             closeController();
             stopCasting();
@@ -843,22 +819,16 @@ public class CastHelper {
         }
         if (total <= 0) return;
         elapsed = Math.min(elapsed, total);
-        int prog = (int) (elapsed * 1000L / total);
-        cCardBar.setProgress(prog);
-        cCardTime.setText(fmtShort(elapsed) + " / " + fmtShort(total));
         if (!userSeeking) {
-            cSeek.setProgress(prog);
-            cElapsed.setText(fmtShort(elapsed));
-            cRemain.setText("-" + fmtShort(total - elapsed));
+            cSeek.setProgress((int) (elapsed * 1000L / total));
+            cCardTime.setText(fmtShort(elapsed) + " / " + fmtShort(total));
         }
     }
 
     private void showTimes(float f) {
         int total = castClipSecs > 0 ? castClipSecs : curDur;
         if (total <= 0) return;
-        int el = (int) (f * total);
-        cElapsed.setText(fmtShort(el));
-        cRemain.setText("-" + fmtShort(total - el));
+        cCardTime.setText(fmtShort((int) (f * total)) + " / " + fmtShort(total));
     }
 
     private void seekToFraction(float f) {
