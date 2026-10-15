@@ -107,6 +107,13 @@ public class CastHelper {
     private int curDur = 0;
     private volatile int webDur = 0;
     private volatile boolean openCtrlAfter = false;
+    private volatile int probeDur = 0;
+    private volatile int resumeAt = 0;
+    private volatile boolean linkUp = true;
+    private View cDot;
+    private TextView cStatus;
+    private TextView cSub;
+    private String cSubBase = "";
     private volatile int lastPos = 0;
     private TextView cElapsed, cRemain, cCardTime;
     private SeekBar cSeek;
@@ -128,6 +135,7 @@ public class CastHelper {
         mediaTitle = title == null ? "" : title;
         mediaClipSecs = 0;
         mediaClipStart = -1;
+        webDur = 0;
         artBackdrop = "";
         artPoster = "";
     }
@@ -653,6 +661,8 @@ public class CastHelper {
         head.setGravity(Gravity.CENTER);
         panel.addView(head, lp(MATCH, WRAP, 0, 6, 0, 0));
         TextView sub = text((shownTitle.isEmpty() ? "" : shownTitle + "  \u2022  ") + "Connected", 11, GREY, false);
+        cSub = sub;
+        cSubBase = shownTitle.isEmpty() ? "" : shownTitle + "  \u2022  ";
         sub.setGravity(Gravity.CENTER);
         sub.setSingleLine(true);
         sub.setEllipsize(TextUtils.TruncateAt.END);
@@ -745,14 +755,30 @@ public class CastHelper {
         stRow.setOrientation(LinearLayout.HORIZONTAL);
         stRow.setGravity(Gravity.CENTER_VERTICAL);
         View dot = new View(act);
+        cDot = dot;
         dot.setBackground(round(GREEN, 4, 0, 0));
         stRow.addView(dot, new LinearLayout.LayoutParams(dp(6), dp(6)));
-        stRow.addView(text("Connected", 11, GREEN, false), lp(WRAP, WRAP, 6, 0, 0, 0));
+        cStatus = text("Connected", 11, GREEN, false);
+        stRow.addView(cStatus, lp(WRAP, WRAP, 6, 0, 0, 0));
         devInfo.addView(stRow, lp(WRAP, WRAP, 0, 1, 0, 0));
         devCard.addView(devInfo, new LinearLayout.LayoutParams(0, WRAP, 1f));
         devCard.addView(new Glyph(act, Glyph.CHEVRON).color(GREY), new LinearLayout.LayoutParams(dp(16), dp(16)));
         panel.addView(devCard, lp(MATCH, WRAP, 0, 8, 0, 0));
-        devCard.setOnClickListener(v -> toast("Connected to " + prettyName(activeName)));
+        devCard.setOnClickListener(v -> {
+            if (linkUp) {
+                toast("Connected to " + prettyName(activeName));
+                return;
+            }
+            mediaUrl = castUrl;
+            mediaTitle = castTitle;
+            mediaClipSecs = castClipSecs;
+            mediaClipStart = castClipStart;
+            artBackdrop = castBackdrop;
+            artPoster = castPoster;
+            openCtrlAfter = false;
+            resumeAt = lastPos;
+            play(new String[]{activeName, activeControl});
+        });
 
         LinearLayout stop = new LinearLayout(act);
         stop.setOrientation(LinearLayout.HORIZONTAL);
@@ -797,19 +823,38 @@ public class CastHelper {
 
         loadImage(castBackdrop.isEmpty() ? castPoster : castBackdrop, backdrop);
         loadImage(castPoster.isEmpty() ? castBackdrop : castPoster, poster);
+        setLink(linkUp);
         pollLoop();
     }
 
     private void pollLoop() {
         final String control = activeControl;
         pool.execute(() -> {
+            int fails = 0;
             while (ctrlOpen && control != null && control.equals(activeControl)) {
                 try {
                     String info = soap(control, "GetPositionInfo", "<InstanceID>0</InstanceID>");
-                    final int pos = readTime(info, "RelTime");
-                    final int dur = readTime(info, "TrackDuration");
-                    ui.post(() -> applyPosition(pos, dur));
+                    int pos = readTime(info, "RelTime");
+                    int d0 = readTime(info, "TrackDuration");
+                    if (d0 <= 0 && curDur <= 0) {
+                        try {
+                            d0 = readTime(soap(control, "GetMediaInfo", "<InstanceID>0</InstanceID>"), "MediaDuration");
+                        } catch (Exception ig) {
+                        }
+                    }
+                    final int dur = d0;
+                    final int p2 = pos;
+                    Matcher um = Pattern.compile("(?s)<TrackURI>(.*?)</TrackURI>").matcher(info);
+                    String cur = um.find() ? um.group(1).trim() : "";
+                    fails = 0;
+                    if (!cur.isEmpty() && !castUrl.isEmpty() && !sameMedia(cur, castUrl)) {
+                        setLink(false);
+                    } else {
+                        setLink(true);
+                        ui.post(() -> applyPosition(p2, dur));
+                    }
                 } catch (Exception ignore) {
+                    if (++fails >= 3) setLink(false);
                 }
                 try {
                     Thread.sleep(1000);
@@ -824,6 +869,7 @@ public class CastHelper {
         if (pos >= 0) lastPos = pos;
         if (!ctrlOpen || cSeek == null) return;
         if (dur > 0) curDur = dur;
+        else if (probeDur > 0) curDur = probeDur;
         else if (webDur > 0) curDur = webDur;
         int total, elapsed;
         if (castClipSecs > 0) {
@@ -864,6 +910,54 @@ public class CastHelper {
 
     // ---------------------------------------------------------------- playback
 
+    private void setLink(final boolean up) {
+        linkUp = up;
+        ui.post(() -> {
+            if (cStatus == null || cDot == null) return;
+            int col = up ? GREEN : RED;
+            cStatus.setText(up ? "Connected" : "Disconnected. Tap to reconnect");
+            cStatus.setTextColor(col);
+            cDot.setBackground(round(col, 4, 0, 0));
+            if (cSub != null) cSub.setText(cSubBase + (up ? "Connected" : "Disconnected"));
+        });
+    }
+
+    private boolean sameMedia(String a, String b) {
+        if (a == null || b == null || a.isEmpty() || b.isEmpty()) return false;
+        return a.split("\\?")[0].equals(b.split("\\?")[0]);
+    }
+
+    private boolean tvBusyByOther(String control) {
+        try {
+            String ti = soap(control, "GetTransportInfo", "<InstanceID>0</InstanceID>");
+            Matcher m = Pattern.compile("(?s)<CurrentTransportState>(.*?)</CurrentTransportState>").matcher(ti);
+            String st = m.find() ? m.group(1).trim() : "";
+            if (!(st.equals("PLAYING") || st.equals("PAUSED_PLAYBACK") || st.equals("TRANSITIONING"))) return false;
+            String mi = soap(control, "GetMediaInfo", "<InstanceID>0</InstanceID>");
+            Matcher u = Pattern.compile("(?s)<CurrentURI>(.*?)</CurrentURI>").matcher(mi);
+            String cur = u.find() ? u.group(1).trim() : "";
+            if (cur.isEmpty()) return false;
+            return !sameMedia(cur, castUrl);
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    private void probeDuration(final String url) {
+        probeDur = 0;
+        pool.execute(() -> {
+            android.media.MediaMetadataRetriever r = new android.media.MediaMetadataRetriever();
+            try {
+                r.setDataSource(url, new java.util.HashMap<String, String>());
+                String d = r.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_DURATION);
+                if (d != null && url.equals(castUrl)) probeDur = (int) (Long.parseLong(d) / 1000L);
+            } catch (Exception ignore) {
+            } finally {
+                try { r.release(); } catch (Exception ignore) {}
+            }
+        });
+    }
+
     private void pausePhone() {
         web.post(() -> web.evaluateJavascript(
             "document.querySelectorAll('video').forEach(function(v){try{v.pause()}catch(e){}})", null));
@@ -880,14 +974,28 @@ public class CastHelper {
         toast("Sending to " + dev[0] + "...");
         pool.execute(() -> {
             try {
+                boolean mine = old != null && old.equals(dev[1]) && linkUp;
+                if (!mine && tvBusyByOther(dev[1])) {
+                    openCtrlAfter = false;
+                    toast("This TV is already playing from another device");
+                    return;
+                }
+                curDur = 0;
+                probeDur = 0;
                 if (old != null && !old.equals(dev[1])) {
                     try { soap(old, "Stop", "<InstanceID>0</InstanceID>"); } catch (Exception ignore) {}
                 }
                 pushMedia(dev[1], url, title);
+                final int ra = resumeAt;
+                resumeAt = 0;
+                if (ra > 5) {
+                    try { Thread.sleep(1500); seekTo(dev[1], ra); } catch (Exception ignore) {}
+                }
                 activeControl = dev[1];
                 activeName = dev[0];
                 paused = false;
                 castUrl = url;
+                probeDuration(url);
                 castTitle = title;
                 castClipSecs = clip;
                 castClipStart = cstart;
@@ -897,6 +1005,7 @@ public class CastHelper {
                 if (clip > 0) startClipLoop(dev[1], clip, cstart);
                 else loopToken++;
                 ui.post(() -> {
+                    setLink(true);
                     toast("Playing on " + dev[0]);
                     pausePhone();
                     if (openCtrlAfter) {
