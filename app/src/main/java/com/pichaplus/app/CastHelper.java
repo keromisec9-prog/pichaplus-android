@@ -105,6 +105,7 @@ public class CastHelper {
     private volatile boolean ctrlOpen = false;
     private boolean userSeeking = false;
     private int curDur = 0;
+    private volatile int webDur = 0;
     private TextView cElapsed, cRemain, cCardTime;
     private SeekBar cSeek;
     private ProgressBar cCardBar;
@@ -133,6 +134,11 @@ public class CastHelper {
     public void setArt(String backdrop, String poster) {
         artBackdrop = backdrop == null ? "" : backdrop;
         artPoster = poster == null ? "" : poster;
+    }
+
+    @JavascriptInterface
+    public void setDuration(int secs) {
+        webDur = secs > 0 ? secs : 0;
     }
 
     @JavascriptInterface
@@ -809,12 +815,13 @@ public class CastHelper {
     private void applyPosition(int pos, int dur) {
         if (!ctrlOpen || cSeek == null) return;
         if (dur > 0) curDur = dur;
+        else if (webDur > 0) curDur = webDur;
         int total, elapsed;
         if (castClipSecs > 0) {
             total = castClipSecs;
             elapsed = pos < 0 ? 0 : Math.max(0, pos - loopStart);
         } else {
-            total = dur;
+            total = curDur;
             elapsed = pos < 0 ? 0 : pos;
         }
         if (total <= 0) return;
