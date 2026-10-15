@@ -109,6 +109,134 @@ public class CastHelper {
         soap(control, "Play", "<InstanceID>0</InstanceID><Speed>1</Speed>");
     }
 
+    private static class RemoteIcon extends View {
+        final int kind; // 0 = back 10s, 1 = pause or play, 3 = forward 10s
+        boolean paused;
+        final android.graphics.Paint p = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+
+        RemoteIcon(Context c, int kind) {
+            super(c);
+            this.kind = kind;
+        }
+
+        @Override
+        protected void onDraw(android.graphics.Canvas cv) {
+            float w = getWidth(), h = getHeight();
+            float cx = w / 2f, cy = h / 2f, s = Math.min(w, h);
+            p.setColor(0xFFFFFFFF);
+            if (kind == 1 && !paused) {
+                p.setStyle(android.graphics.Paint.Style.FILL);
+                float bw = s * 0.11f, bh = s * 0.26f, gap = s * 0.07f;
+                cv.drawRect(cx - gap - bw, cy - bh, cx - gap, cy + bh, p);
+                cv.drawRect(cx + gap, cy - bh, cx + gap + bw, cy + bh, p);
+            } else if (kind == 1) {
+                p.setStyle(android.graphics.Paint.Style.FILL);
+                android.graphics.Path t = new android.graphics.Path();
+                t.moveTo(cx - s * 0.12f, cy - s * 0.26f);
+                t.lineTo(cx - s * 0.12f, cy + s * 0.26f);
+                t.lineTo(cx + s * 0.26f, cy);
+                t.close();
+                cv.drawPath(t, p);
+            } else {
+                cv.save();
+                if (kind == 3) cv.scale(-1f, 1f, cx, cy);
+                float r = s * 0.34f;
+                p.setStyle(android.graphics.Paint.Style.STROKE);
+                p.setStrokeWidth(s * 0.07f);
+                cv.drawArc(new android.graphics.RectF(cx - r, cy - r, cx + r, cy + r), -90f, 270f, false, p);
+                p.setStyle(android.graphics.Paint.Style.FILL);
+                android.graphics.Path a = new android.graphics.Path();
+                a.moveTo(cx - s * 0.13f, cy - r);
+                a.lineTo(cx + s * 0.05f, cy - r - s * 0.12f);
+                a.lineTo(cx + s * 0.05f, cy - r + s * 0.12f);
+                a.close();
+                cv.drawPath(a, p);
+                cv.restore();
+                p.setTextAlign(android.graphics.Paint.Align.CENTER);
+                p.setTextSize(s * 0.26f);
+                p.setFakeBoldText(true);
+                cv.drawText("10", cx, cy + s * 0.09f, p);
+            }
+        }
+    }
+
+    private RemoteIcon playIcon;
+
+    private View remoteRow() {
+        android.widget.LinearLayout row = new android.widget.LinearLayout(act);
+        row.setOrientation(android.widget.LinearLayout.HORIZONTAL);
+        row.setGravity(android.view.Gravity.CENTER);
+        android.widget.LinearLayout.LayoutParams rl = new android.widget.LinearLayout.LayoutParams(
+            android.view.ViewGroup.LayoutParams.MATCH_PARENT, android.view.ViewGroup.LayoutParams.WRAP_CONTENT);
+        rl.topMargin = dp(16);
+        row.setLayoutParams(rl);
+
+        RemoteIcon back = new RemoteIcon(act, 0);
+        RemoteIcon fwd = new RemoteIcon(act, 3);
+        playIcon = new RemoteIcon(act, 1);
+        playIcon.paused = paused;
+        android.graphics.drawable.GradientDrawable circle = new android.graphics.drawable.GradientDrawable();
+        circle.setShape(android.graphics.drawable.GradientDrawable.OVAL);
+        circle.setColor(0xFF2A2A2A);
+        playIcon.setBackground(circle);
+
+        android.widget.LinearLayout.LayoutParams sm1 = new android.widget.LinearLayout.LayoutParams(dp(60), dp(60));
+        sm1.setMargins(dp(14), 0, dp(14), 0);
+        android.widget.LinearLayout.LayoutParams sm2 = new android.widget.LinearLayout.LayoutParams(dp(60), dp(60));
+        sm2.setMargins(dp(14), 0, dp(14), 0);
+        android.widget.LinearLayout.LayoutParams big = new android.widget.LinearLayout.LayoutParams(dp(76), dp(76));
+        big.setMargins(dp(14), 0, dp(14), 0);
+        row.addView(back, sm1);
+        row.addView(playIcon, big);
+        row.addView(fwd, sm2);
+
+        back.setOnClickListener(v -> seekBy(-10));
+        fwd.setOnClickListener(v -> seekBy(10));
+        playIcon.setOnClickListener(v -> {
+            togglePause();
+            playIcon.paused = paused;
+            playIcon.invalidate();
+        });
+        return row;
+    }
+
+    private static int parseTime(String t) {
+        try {
+            int dot = t.indexOf('.');
+            if (dot >= 0) t = t.substring(0, dot);
+            String[] q = t.split(":");
+            if (q.length != 3) return -1;
+            return Integer.parseInt(q[0].trim()) * 3600 + Integer.parseInt(q[1].trim()) * 60 + Integer.parseInt(q[2].trim());
+        } catch (Exception e) {
+            return -1;
+        }
+    }
+
+    private static String fmtTime(int sec) {
+        return String.format(java.util.Locale.US, "%d:%02d:%02d", sec / 3600, (sec % 3600) / 60, sec % 60);
+    }
+
+    private void seekBy(final int delta) {
+        final String c = activeControl;
+        if (c == null) return;
+        pool.execute(() -> {
+            try {
+                String info = soap(c, "GetPositionInfo", "<InstanceID>0</InstanceID>");
+                Matcher m = Pattern.compile("(?s)<RelTime>(.*?)</RelTime>").matcher(info);
+                int pos = m.find() ? parseTime(m.group(1).trim()) : -1;
+                if (pos < 0) throw new Exception("no position");
+                String target = fmtTime(Math.max(0, pos + delta));
+                try {
+                    soap(c, "Seek", "<InstanceID>0</InstanceID><Unit>REL_TIME</Unit><Target>" + target + "</Target>");
+                } catch (Exception e1) {
+                    soap(c, "Seek", "<InstanceID>0</InstanceID><Unit>ABS_TIME</Unit><Target>" + target + "</Target>");
+                }
+            } catch (Exception e) {
+                ui.post(() -> Toast.makeText(act, "This TV doesn't support skipping", Toast.LENGTH_SHORT).show());
+            }
+        });
+    }
+
     private void togglePause() {
         final String c = activeControl;
         if (c == null) return;
@@ -211,7 +339,7 @@ public class CastHelper {
     private void onTap() {
         if (activeControl != null) {
             openSheet("Casting to TV", activeName.isEmpty() ? "" : "Playing on " + activeName);
-            sheetList.addView(sheetBtn(paused ? "Resume" : "Pause", false, () -> { closeSheet(); togglePause(); }));
+            sheetList.addView(remoteRow());
             if (!mediaUrl.isEmpty()) {
                 sheetList.addView(sheetBtn("Cast to another TV", false, () -> startSearch()));
             }
@@ -364,13 +492,13 @@ public class CastHelper {
         });
     }
 
-    private void soap(String controlUrl, String action, String args) throws Exception {
+    private String soap(String controlUrl, String action, String args) throws Exception {
         String body = "<?xml version=\"1.0\"?>"
             + "<s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\" "
             + "s:encodingStyle=\"http://schemas.xmlsoap.org/soap/encoding/\"><s:Body>"
             + "<u:" + action + " xmlns:u=\"" + AVT + "\">" + args + "</u:" + action + ">"
             + "</s:Body></s:Envelope>";
-        http(controlUrl, "POST", body, action);
+        return http(controlUrl, "POST", body, action);
     }
 
     private String http(String url, String method, String body, String action) throws Exception {
