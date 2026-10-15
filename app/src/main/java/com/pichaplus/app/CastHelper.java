@@ -106,6 +106,8 @@ public class CastHelper {
     private boolean userSeeking = false;
     private int curDur = 0;
     private volatile int webDur = 0;
+    private volatile boolean openCtrlAfter = false;
+    private volatile int lastPos = 0;
     private TextView cElapsed, cRemain, cCardTime;
     private SeekBar cSeek;
     private ProgressBar cCardBar;
@@ -286,7 +288,7 @@ public class CastHelper {
     private void onTap() {
         if (activeControl != null) {
             if (!mediaUrl.isEmpty() && !mediaUrl.equals(castUrl)) {
-                closeController();
+                openCtrlAfter = true;
                 play(new String[]{activeName, activeControl});
                 return;
             }
@@ -772,6 +774,20 @@ public class CastHelper {
         stop.setBackground(round(0x00000000, 14, 2, 0xFF3A3E49));
         stop.addView(new Glyph(act, Glyph.STOP), new LinearLayout.LayoutParams(dp(20), dp(20)));
         stop.addView(text("Stop casting", 14, 0xFFFFFFFF, true), lp(WRAP, WRAP, 10, 0, 0, 0));
+        LinearLayout inApp = new LinearLayout(act);
+        inApp.setOrientation(LinearLayout.HORIZONTAL);
+        inApp.setGravity(Gravity.CENTER);
+        inApp.setPadding(dp(14), dp(10), dp(14), dp(10));
+        inApp.setBackground(round(CARD, 14, 1, LINE));
+        inApp.addView(text("Play in app instead", 14, 0xFFFFFFFF, true), lp(WRAP, WRAP, 0, 0, 0, 0));
+        panel.addView(inApp, lp(MATCH, WRAP, 0, 8, 0, 0));
+        inApp.setOnClickListener(v -> {
+            final int at = lastPos;
+            closeController();
+            stopCasting();
+            web.post(() -> web.evaluateJavascript(
+                "window.__playInApp&&window.__playInApp(" + at + ")", null));
+        });
         panel.addView(stop, lp(MATCH, WRAP, 0, 8, 0, 0));
         stop.setOnClickListener(v -> {
             closeController();
@@ -818,6 +834,7 @@ public class CastHelper {
     }
 
     private void applyPosition(int pos, int dur) {
+        if (pos >= 0) lastPos = pos;
         if (!ctrlOpen || cSeek == null) return;
         if (dur > 0) curDur = dur;
         else if (webDur > 0) curDur = webDur;
@@ -895,8 +912,13 @@ public class CastHelper {
                 ui.post(() -> {
                     toast("Playing on " + dev[0]);
                     pausePhone();
+                    if (openCtrlAfter) {
+                        openCtrlAfter = false;
+                        showController();
+                    }
                 });
             } catch (Exception e) {
+                openCtrlAfter = false;
                 toast("Could not play on this TV");
             }
         });
