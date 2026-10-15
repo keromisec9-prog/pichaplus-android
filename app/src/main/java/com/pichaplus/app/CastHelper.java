@@ -754,19 +754,6 @@ public class CastHelper {
         panel.addView(devCard, lp(MATCH, WRAP, 0, 8, 0, 0));
         devCard.setOnClickListener(v -> toast("Connected to " + prettyName(activeName)));
 
-        LinearLayout addCard = new LinearLayout(act);
-        addCard.setOrientation(LinearLayout.HORIZONTAL);
-        addCard.setGravity(Gravity.CENTER_VERTICAL);
-        addCard.setPadding(dp(14), dp(10), dp(14), dp(10));
-        addCard.setBackground(round(CARD, 14, 1, LINE));
-        addCard.addView(new Glyph(act, Glyph.DEVICE_ADD), new LinearLayout.LayoutParams(dp(22), dp(22)));
-        TextView addText = text("Cast to another TV", 14, 0xFFFFFFFF, true);
-        addCard.addView(addText, lp(0, WRAP, 12, 0, 0, 0));
-        ((LinearLayout.LayoutParams) addText.getLayoutParams()).weight = 1f;
-        addCard.addView(new Glyph(act, Glyph.CHEVRON).color(GREY), new LinearLayout.LayoutParams(dp(16), dp(16)));
-        panel.addView(addCard, lp(MATCH, WRAP, 0, 8, 0, 0));
-        addCard.setOnClickListener(v -> { closeController(); castAnother(); });
-
         LinearLayout stop = new LinearLayout(act);
         stop.setOrientation(LinearLayout.HORIZONTAL);
         stop.setGravity(Gravity.CENTER);
