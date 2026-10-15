@@ -39,6 +39,8 @@ public class CastHelper {
     private volatile String mediaUrl = "";
     private volatile String mediaTitle = "";
     private volatile String activeControl;
+    private volatile String activeName = "";
+    private volatile boolean paused = false;
     private android.app.Dialog sheet;
     private android.widget.LinearLayout sheetList;
     private android.widget.TextView sheetStatus;
@@ -53,6 +55,72 @@ public class CastHelper {
     public void setMedia(String url, String title) {
         mediaUrl = url == null ? "" : url;
         mediaTitle = title == null ? "" : title;
+    }
+
+    // One tap from a page button: opens the TV picker (or the remote sheet if already casting)
+    @JavascriptInterface
+    public void castNow(String url, String title) {
+        if (url != null && !url.isEmpty()) {
+            mediaUrl = url;
+            mediaTitle = title == null ? "" : title;
+        }
+        ui.post(() -> onTap());
+    }
+
+    @JavascriptInterface
+    public boolean isCasting() {
+        return activeControl != null;
+    }
+
+    // Sends a new clip to the TV that is already chosen. No picker.
+    @JavascriptInterface
+    public boolean sendNext(String url, String title) {
+        final String c = activeControl;
+        if (c == null || url == null || url.isEmpty()) return false;
+        final String t = title == null ? "" : title;
+        mediaUrl = url;
+        mediaTitle = t;
+        paused = false;
+        final String u = url;
+        pool.execute(() -> {
+            try {
+                pushMedia(c, u, t);
+            } catch (Exception e) {
+                ui.post(() -> Toast.makeText(act, "Could not send to TV", Toast.LENGTH_SHORT).show());
+            }
+        });
+        return true;
+    }
+
+    private void pushMedia(String control, String url, String title) throws Exception {
+        String mime = url.toLowerCase().contains(".m3u8") ? "application/vnd.apple.mpegurl" : "video/mp4";
+        String didl = "<DIDL-Lite xmlns=\"urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/\" "
+            + "xmlns:dc=\"http://purl.org/dc/elements/1.1/\" "
+            + "xmlns:upnp=\"urn:schemas-upnp-org:metadata-1-0/upnp/\">"
+            + "<item id=\"0\" parentID=\"-1\" restricted=\"1\">"
+            + "<dc:title>" + esc(title) + "</dc:title>"
+            + "<upnp:class>object.item.videoItem</upnp:class>"
+            + "<res protocolInfo=\"http-get:*:" + mime + ":*\">" + esc(url) + "</res>"
+            + "</item></DIDL-Lite>";
+        soap(control, "SetAVTransportURI",
+            "<InstanceID>0</InstanceID><CurrentURI>" + esc(url) + "</CurrentURI>"
+                + "<CurrentURIMetaData>" + esc(didl) + "</CurrentURIMetaData>");
+        Thread.sleep(400);
+        soap(control, "Play", "<InstanceID>0</InstanceID><Speed>1</Speed>");
+    }
+
+    private void togglePause() {
+        final String c = activeControl;
+        if (c == null) return;
+        final boolean pause = !paused;
+        paused = pause;
+        pool.execute(() -> {
+            try {
+                soap(c, pause ? "Pause" : "Play",
+                    pause ? "<InstanceID>0</InstanceID>" : "<InstanceID>0</InstanceID><Speed>1</Speed>");
+            } catch (Exception ignore) {
+            }
+        });
     }
 
     public void attach(View b) {
@@ -142,7 +210,8 @@ public class CastHelper {
 
     private void onTap() {
         if (activeControl != null) {
-            openSheet("Casting to TV", "");
+            openSheet("Casting to TV", activeName.isEmpty() ? "" : "Playing on " + activeName);
+            sheetList.addView(sheetBtn(paused ? "Resume" : "Pause", false, () -> { closeSheet(); togglePause(); }));
             if (!mediaUrl.isEmpty()) {
                 sheetList.addView(sheetBtn("Cast to another TV", false, () -> startSearch()));
             }
@@ -182,7 +251,7 @@ public class CastHelper {
     }
 
     private void pausePhone() {
-        web.evaluateJavascript("var v=document.getElementById('player');if(v){try{v.pause()}catch(e){}}", null);
+        web.evaluateJavascript("document.querySelectorAll('video').forEach(function(v){try{v.pause()}catch(e){}})", null);
     }
 
     private void discover() {
@@ -274,7 +343,7 @@ public class CastHelper {
                         + "<CurrentURIMetaData>" + esc(didl) + "</CurrentURIMetaData>");
                 Thread.sleep(500);
                 soap(dev[1], "Play", "<InstanceID>0</InstanceID><Speed>1</Speed>");
-                activeControl = dev[1];
+                activeControl = dev[1]; activeName = dev[0]; paused = false;
                 ui.post(() -> {
                     Toast.makeText(act, "Playing on " + dev[0], Toast.LENGTH_SHORT).show();
                     pausePhone();
@@ -288,6 +357,7 @@ public class CastHelper {
     private void stopCasting() {
         final String c = activeControl;
         activeControl = null;
+        paused = false;
         if (c == null) return;
         pool.execute(() -> {
             try { soap(c, "Stop", "<InstanceID>0</InstanceID>"); } catch (Exception ignore) {}
