@@ -115,6 +115,14 @@ public class CastHelper {
     private TextView cSub;
     private String cSubBase = "";
     private volatile int lastPos = 0;
+    private volatile String activeRC;
+    private volatile boolean volTouching = false;
+    private volatile boolean volMuted = false;
+    private volatile long lastVolSent = 0;
+    private android.widget.SeekBar cVol;
+    private TextView cVolTxt;
+    private TextView cVolIcon;
+    private static final String RCS = "urn:schemas-upnp-org:service:RenderingControl:1";
     private TextView cElapsed, cRemain, cCardTime;
     private SeekBar cSeek;
     private ProgressBar cCardBar;
@@ -234,6 +242,7 @@ public class CastHelper {
             e.clear();
         } else {
             e.putString("control", activeControl);
+            e.putString("rc", activeRC);
             e.putString("name", activeName);
             e.putString("url", castUrl);
             e.putString("title", castTitle);
@@ -259,6 +268,7 @@ public class CastHelper {
         final String c = prefs.getString("control", null);
         if (c == null) return;
         activeControl = c;
+        activeRC = prefs.getString("rc", null);
         activeName = prefs.getString("name", "");
         castUrl = prefs.getString("url", "");
         castTitle = prefs.getString("title", "");
@@ -683,6 +693,57 @@ public class CastHelper {
         controls.addView(cPlay, lp(dp(56), dp(56), 22, 0, 22, 0));
         controls.addView(fwd, lp(dp(34), dp(34), 22, 0, 22, 0));
         panel.addView(controls, lp(MATCH, WRAP, 0, 10, 0, 0));
+        cVol = null;
+        cVolTxt = null;
+        cVolIcon = null;
+        if (activeRC != null) {
+            LinearLayout vrow = new LinearLayout(act);
+            vrow.setOrientation(LinearLayout.HORIZONTAL);
+            vrow.setGravity(Gravity.CENTER_VERTICAL);
+            cVolIcon = text(volMuted ? "\uD83D\uDD07" : "\uD83D\uDD0A", 18, 0xFFFFFFFF, false);
+            cVolIcon.setPadding(dp(6), dp(6), dp(6), dp(6));
+            cVolIcon.setOnClickListener(v -> {
+                volMuted = !volMuted;
+                cVolIcon.setText(volMuted ? "\uD83D\uDD07" : "\uD83D\uDD0A");
+                sendMute(volMuted);
+            });
+            cVolTxt = text("--", 12, GREY, false);
+            cVolTxt.setGravity(Gravity.END);
+            cVol = new android.widget.SeekBar(act);
+            cVol.setMax(100);
+            cVol.setOnSeekBarChangeListener(new android.widget.SeekBar.OnSeekBarChangeListener() {
+                @Override
+                public void onProgressChanged(android.widget.SeekBar sb, int prog, boolean fromUser) {
+                    if (!fromUser) return;
+                    cVolTxt.setText(prog + "%");
+                    long now = System.currentTimeMillis();
+                    if (now - lastVolSent > 150) {
+                        lastVolSent = now;
+                        sendVolume(prog);
+                    }
+                }
+
+                @Override
+                public void onStartTrackingTouch(android.widget.SeekBar sb) {
+                    volTouching = true;
+                }
+
+                @Override
+                public void onStopTrackingTouch(android.widget.SeekBar sb) {
+                    sendVolume(sb.getProgress());
+                    if (volMuted && sb.getProgress() > 0) {
+                        volMuted = false;
+                        cVolIcon.setText("\uD83D\uDD0A");
+                        sendMute(false);
+                    }
+                    ui.postDelayed(() -> volTouching = false, 800);
+                }
+            });
+            vrow.addView(cVolIcon, new LinearLayout.LayoutParams(dp(36), dp(36)));
+            vrow.addView(cVol, new LinearLayout.LayoutParams(0, WRAP, 1f));
+            vrow.addView(cVolTxt, new LinearLayout.LayoutParams(dp(44), WRAP));
+            panel.addView(vrow, lp(MATCH, WRAP, 24, 12, 24, 0));
+        }
         rew.setOnClickListener(v -> seekBy(-10));
         fwd.setOnClickListener(v -> seekBy(10));
         cPlay.setOnClickListener(v -> {
@@ -852,6 +913,7 @@ public class CastHelper {
                     } else {
                         setLink(true);
                         ui.post(() -> applyPosition(p2, dur));
+                        syncVolume();
                     }
                 } catch (Exception ignore) {
                     if (++fails >= 3) setLink(false);
@@ -993,6 +1055,8 @@ public class CastHelper {
                 }
                 activeControl = dev[1];
                 activeName = dev[0];
+                if (dev.length > 2) activeRC = dev[2];
+                else if (old == null || !old.equals(dev[1])) activeRC = null;
                 paused = false;
                 castUrl = url;
                 probeDuration(url);
@@ -1243,27 +1307,93 @@ public class CastHelper {
         Matcher n = Pattern.compile("(?s)<friendlyName>(.*?)</friendlyName>").matcher(xml);
         String name = n.find() ? unesc(n.group(1).trim()) : "TV";
         Matcher s = Pattern.compile("(?s)<service>(.*?)</service>").matcher(xml);
+        String av = null;
+        String rc = null;
         while (s.find()) {
             String blk = s.group(1);
-            if (!blk.contains("AVTransport")) continue;
+            boolean isAv = blk.contains("AVTransport");
+            boolean isRc = blk.contains("RenderingControl");
+            if (!isAv && !isRc) continue;
             Matcher c = Pattern.compile("(?s)<controlURL>(.*?)</controlURL>").matcher(blk);
-            if (c.find()) {
-                return new String[]{name, new URL(new URL(loc), c.group(1).trim()).toString()};
-            }
+            if (!c.find()) continue;
+            String u = new URL(new URL(loc), c.group(1).trim()).toString();
+            if (isAv && av == null) av = u;
+            if (isRc && rc == null) rc = u;
         }
-        return null;
+        if (av == null) return null;
+        return new String[]{name, av, rc};
     }
 
     private String soap(String controlUrl, String action, String args) throws Exception {
+        return soapSvc(controlUrl, AVT, action, args);
+    }
+
+    private String soapSvc(String controlUrl, String svc, String action, String args) throws Exception {
         String body = "<?xml version=\"1.0\"?>"
             + "<s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\" "
             + "s:encodingStyle=\"http://schemas.xmlsoap.org/soap/encoding/\"><s:Body>"
-            + "<u:" + action + " xmlns:u=\"" + AVT + "\">" + args + "</u:" + action + ">"
+            + "<u:" + action + " xmlns:u=\"" + svc + "\">" + args + "</u:" + action + ">"
             + "</s:Body></s:Envelope>";
-        return http(controlUrl, "POST", body, action);
+        return http(controlUrl, "POST", body, action, svc);
+    }
+
+    private void sendVolume(final int v) {
+        final String rc = activeRC;
+        if (rc == null) return;
+        pool.execute(() -> {
+            try {
+                soapSvc(rc, RCS, "SetVolume", "<InstanceID>0</InstanceID><Channel>Master</Channel><DesiredVolume>" + v + "</DesiredVolume>");
+            } catch (Exception ignore) {
+            }
+        });
+    }
+
+    private void sendMute(final boolean m) {
+        final String rc = activeRC;
+        if (rc == null) return;
+        pool.execute(() -> {
+            try {
+                soapSvc(rc, RCS, "SetMute", "<InstanceID>0</InstanceID><Channel>Master</Channel><DesiredMute>" + (m ? 1 : 0) + "</DesiredMute>");
+            } catch (Exception ignore) {
+            }
+        });
+    }
+
+    private void syncVolume() {
+        final String rc = activeRC;
+        if (rc == null || volTouching) return;
+        try {
+            String vr = soapSvc(rc, RCS, "GetVolume", "<InstanceID>0</InstanceID><Channel>Master</Channel>");
+            Matcher vm = Pattern.compile("(?s)<CurrentVolume>(.*?)</CurrentVolume>").matcher(vr);
+            if (!vm.find()) return;
+            final int vol = Integer.parseInt(vm.group(1).trim());
+            boolean mu = false;
+            try {
+                String mr = soapSvc(rc, RCS, "GetMute", "<InstanceID>0</InstanceID><Channel>Master</Channel>");
+                Matcher mm = Pattern.compile("(?s)<CurrentMute>(.*?)</CurrentMute>").matcher(mr);
+                if (mm.find()) {
+                    String t = mm.group(1).trim();
+                    mu = t.equals("1") || t.equalsIgnoreCase("true");
+                }
+            } catch (Exception ignore) {
+            }
+            final boolean fmu = mu;
+            volMuted = fmu;
+            ui.post(() -> {
+                if (cVol == null || volTouching) return;
+                cVol.setProgress(vol);
+                if (cVolTxt != null) cVolTxt.setText(vol + "%");
+                if (cVolIcon != null) cVolIcon.setText(fmu ? "\uD83D\uDD07" : "\uD83D\uDD0A");
+            });
+        } catch (Exception ignore) {
+        }
     }
 
     private String http(String url, String method, String body, String action) throws Exception {
+        return http(url, method, body, action, AVT);
+    }
+
+    private String http(String url, String method, String body, String action, String svc) throws Exception {
         HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
         c.setConnectTimeout(4000);
         c.setReadTimeout(8000);
@@ -1271,7 +1401,7 @@ public class CastHelper {
         if (body != null) {
             c.setDoOutput(true);
             c.setRequestProperty("Content-Type", "text/xml; charset=\"utf-8\"");
-            c.setRequestProperty("SOAPACTION", "\"" + AVT + "#" + action + "\"");
+            c.setRequestProperty("SOAPACTION", "\"" + svc + "#" + action + "\"");
             OutputStream o = c.getOutputStream();
             o.write(body.getBytes("UTF-8"));
             o.close();
