@@ -713,6 +713,16 @@ public class CastHelper {
             setVolIcon();
             cVolIcon.setPadding(dp(6), dp(6), dp(6), dp(6));
             cVolIcon.setOnClickListener(v -> {
+                if (volLevel <= 0) {
+                    volLevel = 1;
+                    volMuted = false;
+                    if (cVol != null) cVol.setProgress(1);
+                    if (cVolTxt != null) cVolTxt.setText("1%");
+                    setVolIcon();
+                    sendVolume(1);
+                    sendMute(false);
+                    return;
+                }
                 volMuted = !volMuted;
                 setVolIcon();
                 sendMute(volMuted);
@@ -899,6 +909,7 @@ public class CastHelper {
         d.setContentView(root);
         Window win = d.getWindow();
         if (win != null) win.setLayout(MATCH, MATCH);
+        d.setOnKeyListener((dlg, kc, ev) -> volumeKey(kc, ev));
         d.setOnDismissListener(x -> {
             if (ctrl == d) {
                 ctrl = null;
@@ -1409,10 +1420,37 @@ public class CastHelper {
         });
     }
 
+    private boolean volumeKey(int keyCode, android.view.KeyEvent ev) {
+        if (keyCode != android.view.KeyEvent.KEYCODE_VOLUME_UP
+            && keyCode != android.view.KeyEvent.KEYCODE_VOLUME_DOWN) return false;
+        if (activeRC == null) return false;
+        if (ev.getAction() == android.view.KeyEvent.ACTION_DOWN) {
+            volTouching = true;
+            boolean wasMuted = volMuted;
+            int v = volLevel + (keyCode == android.view.KeyEvent.KEYCODE_VOLUME_UP ? 5 : -5);
+            v = Math.max(0, Math.min(100, v));
+            volLevel = v;
+            if (v > 0) volMuted = false;
+            if (cVol != null) cVol.setProgress(v);
+            if (cVolTxt != null) cVolTxt.setText(v + "%");
+            setVolIcon();
+            long now = System.currentTimeMillis();
+            if (ev.getRepeatCount() == 0 || now - lastVolSent > 120) {
+                lastVolSent = now;
+                sendVolume(v);
+                if (wasMuted && v > 0) sendMute(false);
+            }
+        } else if (ev.getAction() == android.view.KeyEvent.ACTION_UP) {
+            sendVolume(volLevel);
+            ui.postDelayed(() -> volTouching = false, 800);
+        }
+        return true;
+    }
+
     private void setVolIcon() {
         if (cVolIcon == null) return;
         cVolIcon.setImageResource(R.drawable.sound_detection_loud_sound_24);
-        cVolIcon.setAlpha(volMuted ? 0.4f : 1f);
+        cVolIcon.setAlpha((volMuted || volLevel <= 0) ? 0.4f : 1f);
     }
 
     private void syncVolume() {
