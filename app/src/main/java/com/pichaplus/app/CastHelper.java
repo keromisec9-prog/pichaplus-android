@@ -1388,10 +1388,24 @@ public class CastHelper {
         final String rc = activeRC;
         if (rc == null) return;
         pool.execute(() -> {
+            boolean ok = false;
             try {
                 soapSvc(rc, RCS, "SetMute", "<InstanceID>0</InstanceID><Channel>Master</Channel><DesiredMute>" + (m ? 1 : 0) + "</DesiredMute>");
-            } catch (Exception ignore) {
+                Thread.sleep(500);
+                String mr = soapSvc(rc, RCS, "GetMute", "<InstanceID>0</InstanceID><Channel>Master</Channel>");
+                Matcher mm = Pattern.compile("(?s)<CurrentMute>(.*?)</CurrentMute>").matcher(mr);
+                if (mm.find()) {
+                    String t = mm.group(1).trim();
+                    boolean now = t.equals("1") || t.equalsIgnoreCase("true");
+                    ok = (now == m);
+                } else {
+                    ok = true;
+                }
+            } catch (Exception e) {
+                ok = false;
             }
+            if (!ok) volMuted = !m;
+            ui.post(() -> setVolIcon());
         });
     }
 
@@ -1424,7 +1438,7 @@ public class CastHelper {
             } catch (Exception ignore) {
             }
             final boolean fmu = mu;
-            volMuted = fmu;
+            // mute state is local only: some TVs report it wrongly
             ui.post(() -> {
                 if (cVol == null || volTouching) return;
                 cVol.setProgress(vol);
