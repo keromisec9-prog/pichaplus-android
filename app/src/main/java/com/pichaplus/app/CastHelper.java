@@ -1411,12 +1411,8 @@ public class CastHelper {
 
     private void setVolIcon() {
         if (cVolIcon == null) return;
-        int r;
-        if (volMuted || volLevel <= 0) r = R.drawable.ic_vol_off;
-        else if (volLevel < 34) r = R.drawable.ic_vol_mute;
-        else if (volLevel < 67) r = R.drawable.ic_vol_down;
-        else r = R.drawable.ic_vol_up;
-        cVolIcon.setImageResource(r);
+        cVolIcon.setImageResource(R.drawable.sound_detection_loud_sound_24);
+        cVolIcon.setAlpha(volMuted ? 0.4f : 1f);
     }
 
     private void syncVolume() {
