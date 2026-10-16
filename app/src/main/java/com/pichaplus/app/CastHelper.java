@@ -121,7 +121,8 @@ public class CastHelper {
     private volatile long lastVolSent = 0;
     private android.widget.SeekBar cVol;
     private TextView cVolTxt;
-    private TextView cVolIcon;
+    private ImageView cVolIcon;
+    private volatile int volLevel = 100;
     private static final String RCS = "urn:schemas-upnp-org:service:RenderingControl:1";
     private TextView cElapsed, cRemain, cCardTime;
     private SeekBar cSeek;
@@ -706,11 +707,14 @@ public class CastHelper {
             LinearLayout vrow = new LinearLayout(act);
             vrow.setOrientation(LinearLayout.HORIZONTAL);
             vrow.setGravity(Gravity.CENTER_VERTICAL);
-            cVolIcon = text(volMuted ? "\uD83D\uDD07" : "\uD83D\uDD0A", 18, 0xFFFFFFFF, false);
+            cVolIcon = new ImageView(act);
+            cVolIcon.setScaleType(ImageView.ScaleType.FIT_CENTER);
+            cVolIcon.setColorFilter(0xFFFFFFFF, PorterDuff.Mode.SRC_IN);
+            setVolIcon();
             cVolIcon.setPadding(dp(6), dp(6), dp(6), dp(6));
             cVolIcon.setOnClickListener(v -> {
                 volMuted = !volMuted;
-                cVolIcon.setText(volMuted ? "\uD83D\uDD07" : "\uD83D\uDD0A");
+                setVolIcon();
                 sendMute(volMuted);
             });
             cVolTxt = text("--", 12, GREY, false);
@@ -722,6 +726,9 @@ public class CastHelper {
                 public void onProgressChanged(android.widget.SeekBar sb, int prog, boolean fromUser) {
                     if (!fromUser) return;
                     cVolTxt.setText(prog + "%");
+                    volLevel = prog;
+                    if (prog > 0) volMuted = false;
+                    setVolIcon();
                     long now = System.currentTimeMillis();
                     if (now - lastVolSent > 150) {
                         lastVolSent = now;
@@ -739,7 +746,7 @@ public class CastHelper {
                     sendVolume(sb.getProgress());
                     if (volMuted && sb.getProgress() > 0) {
                         volMuted = false;
-                        cVolIcon.setText("\uD83D\uDD0A");
+                        setVolIcon();
                         sendMute(false);
                     }
                     ui.postDelayed(() -> volTouching = false, 800);
@@ -1388,6 +1395,16 @@ public class CastHelper {
         });
     }
 
+    private void setVolIcon() {
+        if (cVolIcon == null) return;
+        int r;
+        if (volMuted || volLevel <= 0) r = R.drawable.ic_vol_off;
+        else if (volLevel < 34) r = R.drawable.ic_vol_mute;
+        else if (volLevel < 67) r = R.drawable.ic_vol_down;
+        else r = R.drawable.ic_vol_up;
+        cVolIcon.setImageResource(r);
+    }
+
     private void syncVolume() {
         final String rc = activeRC;
         if (rc == null || volTouching) return;
@@ -1412,7 +1429,8 @@ public class CastHelper {
                 if (cVol == null || volTouching) return;
                 cVol.setProgress(vol);
                 if (cVolTxt != null) cVolTxt.setText(vol + "%");
-                if (cVolIcon != null) cVolIcon.setText(fmu ? "\uD83D\uDD07" : "\uD83D\uDD0A");
+                if (cVolIcon != null) volLevel = vol;
+                setVolIcon();
             });
         } catch (Exception ignore) {
         }
