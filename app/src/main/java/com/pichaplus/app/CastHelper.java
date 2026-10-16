@@ -273,6 +273,10 @@ public class CastHelper {
         castUrl = prefs.getString("url", "");
         castTitle = prefs.getString("title", "");
         castClipSecs = prefs.getInt("clip", 0);
+        if (castUrl.equals(prefs.getString("durUrl", ""))) {
+            probeDur = prefs.getInt("dur", 0);
+            curDur = probeDur;
+        }
         lastPos = prefs.getInt("pos", 0);
         lastPos = prefs.getInt("pos", 0);
         castClipStart = prefs.getInt("clipStart", -1);
@@ -920,6 +924,10 @@ public class CastHelper {
                         }
                     }
                     final int dur = d0;
+                    if (dur > 0 && probeDur != dur) {
+                        probeDur = dur;
+                        prefs.edit().putInt("dur", dur).putString("durUrl", castUrl).apply();
+                    }
                     final int p2 = pos;
                     if (pos > 0) prefs.edit().putInt("pos", pos).apply();
                     if (pos > 0 && pos % 5 == 0) prefs.edit().putInt("pos", pos).apply();
@@ -1030,7 +1038,10 @@ public class CastHelper {
             try {
                 r.setDataSource(url, new java.util.HashMap<String, String>());
                 String d = r.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_DURATION);
-                if (d != null && url.equals(castUrl)) probeDur = (int) (Long.parseLong(d) / 1000L);
+                if (d != null && url.equals(castUrl)) {
+                    probeDur = (int) (Long.parseLong(d) / 1000L);
+                    prefs.edit().putInt("dur", probeDur).putString("durUrl", url).apply();
+                }
             } catch (Exception ignore) {
             } finally {
                 try { r.release(); } catch (Exception ignore) {}
