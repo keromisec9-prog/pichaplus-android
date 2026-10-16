@@ -274,6 +274,7 @@ public class CastHelper {
         castTitle = prefs.getString("title", "");
         castClipSecs = prefs.getInt("clip", 0);
         lastPos = prefs.getInt("pos", 0);
+        lastPos = prefs.getInt("pos", 0);
         castClipStart = prefs.getInt("clipStart", -1);
         castBackdrop = prefs.getString("backdrop", "");
         castPoster = prefs.getString("poster", "");
@@ -920,6 +921,7 @@ public class CastHelper {
                     }
                     final int dur = d0;
                     final int p2 = pos;
+                    if (pos > 0) prefs.edit().putInt("pos", pos).apply();
                     if (pos > 0 && pos % 5 == 0) prefs.edit().putInt("pos", pos).apply();
                     Matcher um = Pattern.compile("(?s)<TrackURI>(.*?)</TrackURI>").matcher(info);
                     String cur = um.find() ? um.group(1).trim() : "";
