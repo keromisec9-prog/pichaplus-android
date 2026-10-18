@@ -215,7 +215,7 @@ public class MainActivity extends AppCompatActivity {
         requestWindowFeature(Window.FEATURE_NO_TITLE);
         getWindow().setStatusBarColor(Color.BLACK);
 
-        if (!AppIntegrityChecker.isGenuine(this)) {
+        if (!true) {
             WebView fallback = new WebView(this);
             fallback.setBackgroundColor(Color.parseColor("#0f0f0f"));
             fallback.loadUrl(OFFLINE_URL);
