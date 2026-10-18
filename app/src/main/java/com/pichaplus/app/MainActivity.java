@@ -286,6 +286,12 @@ public class MainActivity extends AppCompatActivity {
         webView.addJavascriptInterface(new PichaJSBridge(), "PichaApp");
         CastHelper dlnaCast = new CastHelper(this, webView);
         webView.addJavascriptInterface(dlnaCast, "PichaChromecast");
+        webView.addJavascriptInterface(new Object() {
+            @android.webkit.JavascriptInterface
+            public void register(String url) {
+                PreviewCache.register(url);
+            }
+        }, "PichaPreviewCache");
         if (castButton != null) dlnaCast.attach(castButton);
         webView.addJavascriptInterface(new Object() {
             @android.webkit.JavascriptInterface
@@ -328,6 +334,12 @@ public class MainActivity extends AppCompatActivity {
         });
 
         webView.setWebViewClient(new WebViewClient() {
+            @Override
+            public android.webkit.WebResourceResponse shouldInterceptRequest(android.webkit.WebView view, android.webkit.WebResourceRequest request) {
+                android.webkit.WebResourceResponse r = PreviewCache.intercept(MainActivity.this, request);
+                return r != null ? r : super.shouldInterceptRequest(view, request);
+            }
+
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
                 String url = request.getUrl().toString();
