@@ -288,10 +288,14 @@ public class MainActivity extends AppCompatActivity {
         webView.addJavascriptInterface(dlnaCast, "PichaChromecast");
         webView.addJavascriptInterface(new Object() {
             @android.webkit.JavascriptInterface
-            public void register(String url) {
-                PreviewCache.register(url);
+            public String get(String key) {
+                return ClipStore.get(MainActivity.this, key);
             }
-        }, "PichaPreviewCache");
+            @android.webkit.JavascriptInterface
+            public void save(String key, String url, double startSec) {
+                ClipStore.save(MainActivity.this, key, url, startSec);
+            }
+        }, "PichaClips");
         if (castButton != null) dlnaCast.attach(castButton);
         webView.addJavascriptInterface(new Object() {
             @android.webkit.JavascriptInterface
@@ -336,7 +340,7 @@ public class MainActivity extends AppCompatActivity {
         webView.setWebViewClient(new WebViewClient() {
             @Override
             public android.webkit.WebResourceResponse shouldInterceptRequest(android.webkit.WebView view, android.webkit.WebResourceRequest request) {
-                android.webkit.WebResourceResponse r = PreviewCache.intercept(MainActivity.this, request);
+                android.webkit.WebResourceResponse r = ClipStore.serve(MainActivity.this, request);
                 return r != null ? r : super.shouldInterceptRequest(view, request);
             }
 
