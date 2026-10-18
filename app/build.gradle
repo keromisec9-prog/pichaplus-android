@@ -40,7 +40,6 @@ dependencies {
     implementation 'com.google.android.gms:play-services-cast-framework:21.4.0'
     implementation 'androidx.mediarouter:mediarouter:1.7.0'
     implementation 'androidx.appcompat:appcompat:1.6.1'
-    implementation 'androidx.media3:media3-common:1.2.1'
     implementation 'androidx.media3:media3-datasource:1.2.1'
     implementation 'androidx.media3:media3-database:1.2.1'
 }
