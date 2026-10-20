@@ -32,11 +32,13 @@ public class PichaFirebaseService extends FirebaseMessagingService {
         String title = "Picha+";
         String body = "";
         String imageUrl = null;
+        String channelId = CHANNEL_ID;
 
         // Try notification payload first
         if (message.getNotification() != null) {
             title = message.getNotification().getTitle() != null ? message.getNotification().getTitle() : title;
             body = message.getNotification().getBody() != null ? message.getNotification().getBody() : body;
+            if (message.getNotification().getChannelId() != null) channelId = message.getNotification().getChannelId();
             if (message.getNotification().getImageUrl() != null) {
                 imageUrl = message.getNotification().getImageUrl().toString();
             }
@@ -52,7 +54,7 @@ public class PichaFirebaseService extends FirebaseMessagingService {
             }
         }
 
-        showNotification(title, body, imageUrl);
+        showNotification(title, body, imageUrl, channelId);
     }
 
     private Bitmap getBitmapFromUrl(String imageUrl) {
@@ -70,17 +72,19 @@ public class PichaFirebaseService extends FirebaseMessagingService {
         }
     }
 
-    private void showNotification(String title, String body, String imageUrl) {
+    private void showNotification(String title, String body, String imageUrl, String channelId) {
         NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             NotificationChannel channel = new NotificationChannel(
                 CHANNEL_ID, "Picha+ Notifications", NotificationManager.IMPORTANCE_HIGH);
             nm.createNotificationChannel(channel);
         }
+        SecurityChannel.create(this);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && nm.getNotificationChannel(channelId) == null) channelId = CHANNEL_ID;
         Intent intent = new Intent(this, MainActivity.class);
         PendingIntent pi = PendingIntent.getActivity(this, 0, intent, PendingIntent.FLAG_IMMUTABLE);
 
-        NotificationCompat.Builder builder = new NotificationCompat.Builder(this, CHANNEL_ID)
+        NotificationCompat.Builder builder = new NotificationCompat.Builder(this, channelId)
             .setSmallIcon(R.mipmap.ic_launcher)
             .setContentTitle(title)
             .setContentText(body)
