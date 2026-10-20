@@ -566,6 +566,18 @@ public class MainActivity extends AppCompatActivity {
         } else if (webView.canGoBack()) {
             webView.goBack();
         } else {
+            webView.evaluateJavascript(
+                "(function(){try{return !!(window.__ppRunFallbacks&&window.__ppRunFallbacks());}catch(e){return false;}})()",
+                new android.webkit.ValueCallback<String>() {
+                    @Override public void onReceiveValue(String v) {
+                        if (!"true".equals(v)) ppExitToast();
+                    }
+                });
+        }
+    }
+
+    private void ppExitToast() {
+        {
             long now = System.currentTimeMillis();
             if (now - ppLastBack < 2000) {
                 if (ppBackToast != null) ppBackToast.cancel();
