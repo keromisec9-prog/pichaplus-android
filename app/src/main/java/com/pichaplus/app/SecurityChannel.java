@@ -27,6 +27,11 @@ public final class SecurityChannel {
             ch.enableVibration(true);
             ch.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
             nm.createNotificationChannel(ch);
+            Uri snd2 = Uri.parse("android.resource://" + c.getPackageName() + "/" + R.raw.interface_start);
+            NotificationChannel ch2 = new NotificationChannel("picha_new_content", "New movies and episodes", NotificationManager.IMPORTANCE_HIGH);
+            ch2.setDescription("New movies, series and episodes");
+            ch2.setSound(snd2, aa);
+            nm.createNotificationChannel(ch2);
         } catch (Exception ignore) {
         }
     }
