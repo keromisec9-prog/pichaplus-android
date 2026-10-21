@@ -184,8 +184,15 @@ public class MainActivity extends AppCompatActivity {
         public void onSessionToken(String token) {
             if (token != null && !token.isEmpty() && !token.equals("null")) {
                 PichaTokenManager.saveSession(MainActivity.this, token);
+                runOnUiThread(() -> ppAskBatteryOnce());
             }
         }
+
+        @JavascriptInterface
+        public boolean batteryExempt() { return ppBatteryExempt(); }
+
+        @JavascriptInterface
+        public void toggleBatteryExemption() { runOnUiThread(() -> ppToggleBattery()); }
 
         @JavascriptInterface
         public void exitApp() {
@@ -392,6 +399,7 @@ public class MainActivity extends AppCompatActivity {
                         if (value != null && !value.equals("null")) {
                             String token = value.replace("\"", "");
                             PichaTokenManager.saveSession(MainActivity.this, token);
+                            ppAskBatteryOnce();
                         }
                     }
                 );
@@ -573,6 +581,40 @@ public class MainActivity extends AppCompatActivity {
                         if (!"true".equals(v)) ppExitToast();
                     }
                 });
+        }
+    }
+
+    private boolean ppBatteryExempt() {
+        try {
+            android.os.PowerManager pm = (android.os.PowerManager) getSystemService(POWER_SERVICE);
+            return pm != null && pm.isIgnoringBatteryOptimizations(getPackageName());
+        } catch (Exception e) { return true; }
+    }
+
+    private void ppRequestBattery() {
+        try {
+            startActivity(new android.content.Intent(
+                android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                android.net.Uri.parse("package:" + getPackageName())));
+        } catch (Exception e) {
+            try { startActivity(new android.content.Intent(android.provider.Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)); } catch (Exception e2) {}
+        }
+    }
+
+    private void ppAskBatteryOnce() {
+        try {
+            android.content.SharedPreferences sp = getSharedPreferences("picha_prefs", MODE_PRIVATE);
+            if (sp.getBoolean("battery_asked", false) || ppBatteryExempt()) return;
+            sp.edit().putBoolean("battery_asked", true).apply();
+            ppRequestBattery();
+        } catch (Exception e) {}
+    }
+
+    private void ppToggleBattery() {
+        if (ppBatteryExempt()) {
+            try { startActivity(new android.content.Intent(android.provider.Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)); } catch (Exception e) {}
+        } else {
+            ppRequestBattery();
         }
     }
 
