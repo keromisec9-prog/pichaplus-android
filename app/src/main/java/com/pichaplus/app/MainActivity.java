@@ -184,7 +184,6 @@ public class MainActivity extends AppCompatActivity {
         public void onSessionToken(String token) {
             if (token != null && !token.isEmpty() && !token.equals("null")) {
                 PichaTokenManager.saveSession(MainActivity.this, token);
-                runOnUiThread(() -> ppAskBatteryOnce());
             }
         }
 
@@ -399,7 +398,6 @@ public class MainActivity extends AppCompatActivity {
                         if (value != null && !value.equals("null")) {
                             String token = value.replace("\"", "");
                             PichaTokenManager.saveSession(MainActivity.this, token);
-                            ppAskBatteryOnce();
                         }
                     }
                 );
