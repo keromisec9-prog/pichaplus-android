@@ -112,6 +112,7 @@ public class CastHelper {
     private volatile boolean linkUp = true;
     private View cDot;
     private TextView cStatus;
+    private Glyph cCastGlyph;
     private TextView cSub;
     private String cSubBase = "";
     private volatile int lastPos = 0;
@@ -673,7 +674,8 @@ public class CastHelper {
             }
         });
 
-        panel.addView(new Glyph(act, Glyph.CAST).color(GREEN), lp(dp(18), dp(18), 0, 2, 0, 0));
+        cCastGlyph = new Glyph(act, Glyph.CAST).color(linkUp ? GREEN : RED);
+        panel.addView(cCastGlyph, lp(dp(18), dp(18), 0, 2, 0, 0));
         TextView head = text("Playing on " + prettyName(activeName), 16, 0xFFFFFFFF, true);
         head.setGravity(Gravity.CENTER);
         panel.addView(head, lp(MATCH, WRAP, 0, 6, 0, 0));
@@ -1024,6 +1026,7 @@ public class CastHelper {
             cStatus.setText(up ? "Connected" : "Disconnected. Tap to reconnect");
             cStatus.setTextColor(col);
             cDot.setBackground(round(col, 4, 0, 0));
+            if (cCastGlyph != null) { cCastGlyph.color(col); cCastGlyph.invalidate(); }
             if (cSub != null) cSub.setText(cSubBase + (up ? "Connected" : "Disconnected"));
         });
     }

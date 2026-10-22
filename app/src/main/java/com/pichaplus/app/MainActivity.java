@@ -32,6 +32,7 @@ public class MainActivity extends AppCompatActivity {
     private WebView webView;
     private CastContext castContext;
     private MediaRouteButton castButton;
+    private volatile boolean castForcedHidden = false;
     private FrameLayout fullscreenContainer;
     private android.view.View customView;
     private WebChromeClient.CustomViewCallback customViewCallback;
@@ -211,6 +212,7 @@ public class MainActivity extends AppCompatActivity {
         @JavascriptInterface
         public void showCastButton(boolean show) {
             runOnUiThread(() -> {
+                castForcedHidden = !show;
                 if (castButton != null) {
                     castButton.setVisibility(show ? android.view.View.VISIBLE : android.view.View.GONE);
                 }
@@ -404,6 +406,7 @@ public class MainActivity extends AppCompatActivity {
                 // Only show cast button on main app page
                 boolean isMainPage = url != null && url.contains("keromisec9-prog.github.io/picha-plus");
                 if (castButton != null) {
+                    castForcedHidden = false;
                     castButton.setVisibility(isMainPage ? android.view.View.VISIBLE : android.view.View.GONE);
                 }
             }
