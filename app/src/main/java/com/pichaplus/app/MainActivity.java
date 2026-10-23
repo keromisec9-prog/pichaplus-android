@@ -574,11 +574,9 @@ public class MainActivity extends AppCompatActivity {
     public void onBackPressed() {
         if (customView != null) {
             webView.getWebChromeClient().onHideCustomView();
-        } else if (webView.canGoBack()) {
-            webView.goBack();
         } else {
             webView.evaluateJavascript(
-                "(function(){try{return !!(window.__ppRunFallbacks&&window.__ppRunFallbacks());}catch(e){return false;}})()",
+                "(function(){try{var on=function(i,c){var e=document.getElementById(i);return !!(e&&e.classList.contains(c||'active'));};var sh=function(i){var e=document.getElementById(i);return !!(e&&getComputedStyle(e).display!=='none');};var up=on('playerModal')||on('paymentModal')||on('signinModal')||on('accountSettingsModal')||on('searchOverlay')||on('userDropdown','open')||sh('paywallModal')||!!document.querySelector('.african-modal-overlay:not([data-held])');if(up){return !!(window.__ppRunFallbacks&&window.__ppRunFallbacks());}var hb=history.back;history.back=function(){};setTimeout(function(){history.back=hb;},700);var fix=function(){if(location.pathname.indexOf('/title/')>-1){try{history.replaceState({},'','/picha-plus/');}catch(e){}}};if(on('infoModal')){closeInfo();fix();return true;}if(on('seriesModal')){closeSeries();fix();return true;}history.back=hb;return !!(window.__ppRunFallbacks&&window.__ppRunFallbacks());}catch(e){return false;}})()",
                 new android.webkit.ValueCallback<String>() {
                     @Override public void onReceiveValue(String v) {
                         if (!"true".equals(v)) ppExitToast();
