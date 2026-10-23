@@ -129,7 +129,6 @@
       <button class="ibtn" onclick="hideDownloads()" id="icBack"></button>
       <h2>My Downloads</h2>
       <div class="store"><span id="icStore"></span><div class="t"><span id="usedTxt"></span><small id="freeTxt"></small></div></div>
-      <button class="ibtn kebab" onclick="manageMenu()" id="icKebab"></button>
     </div>
     <div id="heroBox"></div>
     <div class="sec"><span id="icSec"></span><h3>Downloaded for offline</h3><span class="pill" id="countPill"></span></div>
@@ -187,7 +186,7 @@ function rm(id){ try { window.PichaApp.removeDownload(id); } catch(e){} }
 var sortMode=0, sortNames=['Recent','Name','Size'], DATA=[], selecting=false, sel={}, heroTimer=0, actTimer=0, curPanel='';
 
 function initIcons(){
-  $('icBack').innerHTML=svg('back'); $('icStore').innerHTML=svg('down'); $('icKebab').innerHTML=svg('kebab');
+  $('icBack').innerHTML=svg('back'); $('icStore').innerHTML=svg('down');
   $('icSec').innerHTML=svg('down'); $('icTune').innerHTML=svg('tune'); $('icSort').innerHTML=svg('sort'); $('icFoot').innerHTML=svg('down');
 }
 function initBtn(){
