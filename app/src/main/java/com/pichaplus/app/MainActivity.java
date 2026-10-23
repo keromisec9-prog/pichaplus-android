@@ -247,6 +247,8 @@ public class MainActivity extends AppCompatActivity {
         FrameLayout frame = new FrameLayout(this);
 
         webView = new PPWebView(this);
+        webView.setVerticalScrollBarEnabled(false);
+        webView.setHorizontalScrollBarEnabled(false);
         webView.setLayoutParams(new FrameLayout.LayoutParams(
             FrameLayout.LayoutParams.MATCH_PARENT,
             FrameLayout.LayoutParams.MATCH_PARENT));
