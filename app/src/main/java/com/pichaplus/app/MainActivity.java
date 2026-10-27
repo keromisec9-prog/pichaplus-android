@@ -15,6 +15,11 @@ import android.webkit.CookieManager;
 import android.webkit.DownloadListener;
 import android.webkit.JavascriptInterface;
 import android.webkit.WebChromeClient;
+import android.webkit.ValueCallback;
+import androidx.activity.result.ActivityResult;
+import androidx.activity.result.ActivityResultCallback;
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
 import android.webkit.WebResourceError;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
@@ -29,6 +34,17 @@ import com.google.android.gms.cast.framework.CastButtonFactory;
 import com.google.android.gms.cast.framework.CastContext;
 
 public class MainActivity extends AppCompatActivity {
+    private ValueCallback<Uri[]> pichaFileCallback;
+    private final ActivityResultLauncher<Intent> pichaFilePicker = registerForActivityResult(
+        new ActivityResultContracts.StartActivityForResult(),
+        new ActivityResultCallback<ActivityResult>() {
+            @Override public void onActivityResult(ActivityResult result) {
+                if (pichaFileCallback == null) return;
+                Uri[] r = WebChromeClient.FileChooserParams.parseResult(result.getResultCode(), result.getData());
+                pichaFileCallback.onReceiveValue(r);
+                pichaFileCallback = null;
+            }
+        });
     private WebView webView;
     private CastContext castContext;
     private MediaRouteButton castButton;
@@ -424,6 +440,14 @@ public class MainActivity extends AppCompatActivity {
         });
 
         webView.setWebChromeClient(new WebChromeClient() {
+            @Override
+            public boolean onShowFileChooser(WebView wv, ValueCallback<Uri[]> cb, FileChooserParams params) {
+                if (pichaFileCallback != null) pichaFileCallback.onReceiveValue(null);
+                pichaFileCallback = cb;
+                try { pichaFilePicker.launch(params.createIntent()); }
+                catch (Exception e) { pichaFileCallback = null; return false; }
+                return true;
+            }
             @Override
             public void onShowCustomView(android.view.View view, CustomViewCallback callback) {
                 if (customView != null) {
