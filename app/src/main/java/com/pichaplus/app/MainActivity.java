@@ -41,7 +41,12 @@ public class MainActivity extends AppCompatActivity {
             @Override public void onActivityResult(ActivityResult result) {
                 if (pichaFileCallback == null) return;
                 Uri[] r = WebChromeClient.FileChooserParams.parseResult(result.getResultCode(), result.getData());
-                pichaFileCallback.onReceiveValue(r);
+                final ValueCallback<Uri[]> cbk = pichaFileCallback;
+                if (r != null && r.length == 1 && VideoCompressor.isVideo(MainActivity.this, r[0])) {
+                    VideoCompressor.process(MainActivity.this, r[0], u -> cbk.onReceiveValue(new Uri[]{u}));
+                } else {
+                    cbk.onReceiveValue(r);
+                }
                 pichaFileCallback = null;
             }
         });
