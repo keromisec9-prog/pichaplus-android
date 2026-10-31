@@ -53,6 +53,17 @@ public class MainActivity extends AppCompatActivity {
     private android.view.View customView;
     private WebChromeClient.CustomViewCallback customViewCallback;
     private static final String HOME_URL = "https://keromisec9-prog.github.io/picha-plus/";
+
+    private static boolean isPichaMain(String url) {
+        if (url == null) return false;
+        if (url.contains("keromisec9-prog.github.io/picha-plus")) return true;
+        try {
+            String h = android.net.Uri.parse(url).getHost();
+            if (h == null) return false;
+            h = h.toLowerCase();
+            return h.equals("mypicha.uk") || h.equals("www.mypicha.uk");
+        } catch (Exception e) { return false; }
+    }
     private static final String OFFLINE_URL = "file:///android_asset/offline.html";
 
     private boolean isConnected() {
@@ -422,7 +433,7 @@ public class MainActivity extends AppCompatActivity {
                     }
                 );
                 // Only show cast button on main app page
-                boolean isMainPage = url != null && url.contains("keromisec9-prog.github.io/picha-plus");
+                boolean isMainPage = isPichaMain(url);
                 if (castButton != null) {
                     castForcedHidden = false;
                     castButton.setVisibility(isMainPage ? android.view.View.VISIBLE : android.view.View.GONE);
@@ -433,7 +444,7 @@ public class MainActivity extends AppCompatActivity {
             public void onReceivedError(WebView view, WebResourceRequest request,
                                         WebResourceError error) {
                 if (request.isForMainFrame() &&
-                    request.getUrl().toString().contains("keromisec9-prog.github.io")) {
+                    isPichaMain(request.getUrl().toString())) {
                     view.loadUrl(OFFLINE_URL);
                 }
             }
