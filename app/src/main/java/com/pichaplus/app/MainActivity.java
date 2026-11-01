@@ -587,6 +587,14 @@ public class MainActivity extends AppCompatActivity {
     }
 
     @Override
+    protected void onPause() {
+        super.onPause();
+        if (webView != null) {
+            webView.evaluateJavascript("try{if(typeof flushProgress==='function')flushProgress();}catch(e){}", null);
+        }
+    }
+
+    @Override
     protected void onResume() {
         super.onResume();
         ppApplyAutofill(getSharedPreferences("pp_prefs", MODE_PRIVATE).getBoolean("autofill", true));
