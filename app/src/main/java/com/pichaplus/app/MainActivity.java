@@ -43,7 +43,13 @@ public class MainActivity extends AppCompatActivity {
                 Uri[] r = WebChromeClient.FileChooserParams.parseResult(result.getResultCode(), result.getData());
                 final ValueCallback<Uri[]> cbk = pichaFileCallback;
                 if (r != null && r.length == 1 && VideoCompressor.isVideo(MainActivity.this, r[0])) {
-                    VideoCompressor.process(MainActivity.this, r[0], u -> cbk.onReceiveValue(new Uri[]{u}));
+                    String why = VideoCompressor.blockReason(MainActivity.this, r[0]);
+                    if (why != null) {
+                        android.widget.Toast.makeText(MainActivity.this, why, android.widget.Toast.LENGTH_LONG).show();
+                        cbk.onReceiveValue(null);
+                    } else {
+                        VideoCompressor.process(MainActivity.this, r[0], u -> cbk.onReceiveValue(u == null ? null : new Uri[]{u}));
+                    }
                 } else {
                     cbk.onReceiveValue(r);
                 }
