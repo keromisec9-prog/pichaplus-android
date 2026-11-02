@@ -501,10 +501,10 @@ public class MainActivity extends AppCompatActivity {
                     String[] pat = params.getAcceptTypes();
                     if (pat != null && pat.length > 0 && pat[0] != null
                             && (pat[0].startsWith("video") || pat[0].contains("mp4"))) {
-                        pit = new Intent(Intent.ACTION_OPEN_DOCUMENT); pit.addCategory(Intent.CATEGORY_OPENABLE);
+                        pit = new Intent(Intent.ACTION_GET_CONTENT); pit.addCategory(Intent.CATEGORY_OPENABLE);
                         pit.setType("video/*");
                     }
-                    pichaFilePicker.launch(pit);
+                    pichaFilePicker.launch(Intent.createChooser(pit, "Choose video"));
                 }
                 catch (Exception e) { pichaFileCallback = null; return false; }
                 return true;
