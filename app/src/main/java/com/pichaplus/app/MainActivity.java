@@ -43,10 +43,6 @@ public class MainActivity extends AppCompatActivity {
                 if (pichaFileCallback == null) return;
                 Uri[] r = WebChromeClient.FileChooserParams.parseResult(result.getResultCode(), result.getData());
                 final ValueCallback<Uri[]> cbk = pichaFileCallback;
-                if (r != null && r.length == 1) {
-                    new android.app.AlertDialog.Builder(MainActivity.this)
-                        .setTitle("PICK DEBUG").setMessage(ppDump(r[0])).setPositiveButton("OK", null).show();
-                }
                 if (r != null && r.length == 1 && VideoCompressor.isVideo(MainActivity.this, r[0])) {
                     ppPickedName = VideoCompressor.originalName(MainActivity.this, r[0]);
                     String why = VideoCompressor.blockReason(MainActivity.this, r[0]);
@@ -62,21 +58,6 @@ public class MainActivity extends AppCompatActivity {
                 pichaFileCallback = null;
             }
         });
-    private String ppDump(Uri u) {
-        StringBuilder b = new StringBuilder();
-        b.append(u).append("\n");
-        try (android.database.Cursor c = getContentResolver().query(u, null, null, null, null)) {
-            if (c != null && c.moveToFirst()) {
-                for (int i = 0; i < c.getColumnCount(); i++) {
-                    String v;
-                    try { v = c.getString(i); } catch (Exception e) { v = "?"; }
-                    b.append(c.getColumnName(i)).append(" = ").append(v).append("\n");
-                }
-            }
-        } catch (Exception e) { b.append("ERR ").append(e); }
-        return b.toString();
-    }
-
     private WebView webView;
     private CastContext castContext;
     private MediaRouteButton castButton;
@@ -518,9 +499,9 @@ public class MainActivity extends AppCompatActivity {
                 try {
                     Intent pit = params.createIntent();
                     String[] pat = params.getAcceptTypes();
-                    if (android.os.Build.VERSION.SDK_INT >= 33 && pat != null && pat.length > 0 && pat[0] != null
+                    if (pat != null && pat.length > 0 && pat[0] != null
                             && (pat[0].startsWith("video") || pat[0].contains("mp4"))) {
-                        pit = new Intent(android.provider.MediaStore.ACTION_PICK_IMAGES);
+                        pit = new Intent(Intent.ACTION_OPEN_DOCUMENT); pit.addCategory(Intent.CATEGORY_OPENABLE);
                         pit.setType("video/*");
                     }
                     pichaFilePicker.launch(pit);
