@@ -54,13 +54,13 @@ final class UploadStore {
         return hit;
     }
 
-    private static void queueCancel(JSONObject o, String key, String uid) throws Exception {
+    private static void queueCancel(JSONObject o, String key, String uid, String reason) throws Exception {
         JSONArray q = o.getJSONArray("cancels");
         for (int i = 0; i < q.length(); i++) {
             JSONObject x = q.getJSONObject(i);
             if (key.equals(x.optString("key")) && uid.equals(x.optString("uploadId"))) return;
         }
-        q.put(new JSONObject().put("key", key).put("uploadId", uid).put("t", System.currentTimeMillis()));
+        q.put(new JSONObject().put("key", key).put("uploadId", uid).put("reason", reason).put("t", System.currentTimeMillis()));
     }
 
     static void saveUpload(Context c, String json) {
@@ -103,7 +103,7 @@ final class UploadStore {
             try {
                 JSONObject o = load(c);
                 JSONObject hit = take(o, key, uid);
-                queueCancel(o, key, uid);
+                queueCancel(o, key, uid, "user");
                 save(c, o);
                 if (hit != null) VideoCompressor.deleteCopy(c, hit.optString("name"), hit.optLong("size"));
             } catch (Exception e) {}
@@ -118,7 +118,7 @@ final class UploadStore {
                 JSONArray a = o.getJSONArray("uploads");
                 for (int i = 0; i < a.length(); i++) {
                     JSONObject x = a.getJSONObject(i);
-                    queueCancel(o, x.optString("key"), x.optString("uploadId"));
+                    queueCancel(o, x.optString("key"), x.optString("uploadId"), "deep_clean");
                 }
                 o.put("uploads", new JSONArray());
                 o.put("cancelAll", true);
@@ -196,7 +196,7 @@ final class UploadStore {
                 queued = q.length();
                 for (int i = 0; i < q.length() && i < 15; i++) {
                     JSONObject x = q.getJSONObject(i);
-                    items.put(new JSONObject().put("key", x.optString("key")).put("uploadId", x.optString("uploadId")));
+                    items.put(new JSONObject().put("key", x.optString("key")).put("uploadId", x.optString("uploadId")).put("reason", x.optString("reason", "user")));
                 }
                 all = o.optBoolean("cancelAll", false);
                 at = o.optLong("cancelAllAt", System.currentTimeMillis());
