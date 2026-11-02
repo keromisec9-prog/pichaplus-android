@@ -305,6 +305,7 @@ function manageMenu(){
     mrow('list','Select downloads','Choose individual movies or episodes','startSelect()')+
     mrow('store','Storage &amp; settings','Space used and Wi-Fi only downloads','storagePanel()')+
     mrow('sort','Download activity','Active downloads and progress','activityPanel()')+
+    mrow('sort','Manage my uploads','Pending uploads and upload settings','uploadsPanel()')+
     mrow('clean','Smart cleanup','Delete watched downloads','cleanupPanel()')+
     '<div class="msep"></div>'+mrow('del','Delete all downloads','Free up device storage','deleteAll()',true));
 }
@@ -320,10 +321,60 @@ function storagePanel(){
     '<div class="srow"><span>Picha+ downloads</span><span>'+fmt(used)+'</span></div>'+
     '<div class="srow"><span>Free on device</span><span>'+fmt(free)+'</span></div>'+
     '<div class="msep"></div>'+rows+(rows?'<div class="msep"></div>':'')+
-    '<div class="mrow"><span><b>Download on Wi-Fi only</b><small>Applies to new downloads</small></span><button class="sw'+(wifi?' on':'')+'" onclick="toggleWifi()"><i></i></button></div>');
+    '<div class="mrow"><span><b>Download on Wi-Fi only</b><small>Applies to new downloads</small></span><button class="sw'+(wifi?' on':'')+'" onclick="toggleWifi()"><i></i></button></div>'+
+    '<div class="msep"></div>'+mrow('clean','Clean app storage','Saved upload copies and temporary files: '+fmt(tmpBytes()),'cleanAppAsk()'));
 }
 function toggleWifi(){ try { window.PichaApp.setWifiOnly(!window.PichaApp.getWifiOnly()); } catch(e){} storagePanel(); }
 
+var UP=[];
+function upData(){ try { return JSON.parse(window.PichaTemp.listUploads()); } catch(e){ return {uploads:[],queued:0}; } }
+function tmpBytes(){ try { return parseFloat(window.PichaTemp.tempBytes())||0; } catch(e){ return 0; } }
+function upNetRow(v,t,s,cur){
+  return '<button class="mrow" data-v="'+v+'" onclick="setUpNet(this.dataset.v)"><span><b>'+t+'</b><small>'+s+'</small></span>'+(cur===v?'<b style="color:#f0b429;font-size:1.3rem">\u2713</b>':'')+'</button>';
+}
+function setUpNet(v){ try { window.PichaTemp.setUploadNet(v); } catch(e){} uploadsPanel(); }
+function uploadsPanel(){
+  clearInterval(actTimer); curPanel='ups';
+  var d=upData(), net='both'; UP=d.uploads||[];
+  try { net=window.PichaTemp.getUploadNet()||'both'; } catch(e){}
+  var h=sheetHead('Manage my uploads',UP.length?tp(UP.length,'pending upload'):'No pending uploads','manageMenu()');
+  if(!UP.length) h+='<div class="empty" style="margin:2rem 1rem">No unfinished uploads.<br>Paused uploads appear here so you can finish them.</div>';
+  UP.forEach(function(u,i){
+    var days=Math.max(0,Math.ceil(((u.started||u.t||Date.now())+30*864e5-Date.now())/864e5));
+    h+='<div class="arow"><div class="arow1"><div class="ct1">'+esc(u.name)+'</div><button class="sb" onclick="upResume()">Resume</button> <button class="sb" onclick="upCancelAsk('+i+')">Cancel</button></div>'
+      +'<div class="wp"><div style="width:'+(u.pct||0)+'%"></div></div>'
+      +'<small style="opacity:.7">'+(u.pct||0)+'% of '+fmt(u.size||0)+' \u00b7 '+days+' day'+(days===1?'':'s')+' left to finish</small></div>';
+  });
+  if(d.queued) h+='<div class="empty" style="margin:1rem">'+tp(d.queued,'cancelled upload')+' will be cleared from the server when you are online.</div>';
+  h+='<div id="upmsg" class="empty" style="margin:.5rem 1rem"></div><div class="msep"></div>'
+    +'<div class="sht" style="padding:.5rem 1rem">Auto-resume uploads on</div>'
+    +upNetRow('both','Wi-Fi and mobile data','Resume whenever there is a connection',net)
+    +upNetRow('wifi','Wi-Fi only','Save mobile data',net)
+    +upNetRow('mobile','Mobile data only','Skip Wi-Fi',net);
+  openSheet(h);
+}
+function upResume(){
+  if(!navigator.onLine){ var m=document.getElementById('upmsg'); if(m) m.textContent='You are offline. Connect to the internet to resume.'; return; }
+  location.href='https://keromisec9-prog.github.io/picha-plus/studio.html';
+}
+function upCancelAsk(i){
+  var u=UP[i]; if(!u) return;
+  openSheet(sheetHead('Cancel this upload?',u.name,'uploadsPanel()')
+    +'<div class="srow"><span>Progress</span><span>'+(u.pct||0)+'%</span></div>'
+    +'<div class="srow"><span>Size</span><span>'+fmt(u.size||0)+'</span></div><div class="msep"></div>'
+    +'<div class="empty" style="margin:1rem;text-align:left;line-height:1.55">\u2022 The saved copy in this app is deleted permanently.<br>\u2022 The part already uploaded is removed from our servers'+(navigator.onLine?'.':' once you are back online.')+'<br>\u2022 Your original video on the phone is not touched.</div>'
+    +mrow('del','Cancel and delete','This cannot be undone','upCancelDo('+i+')',true)
+    +mrow('back','Keep uploading','Go back','uploadsPanel()'));
+}
+function upCancelDo(i){ var u=UP[i]; if(u){ try { window.PichaTemp.cancelUpload(u.key,u.uploadId); } catch(e){} } uploadsPanel(); }
+function cleanAppAsk(){
+  var d=upData(), n=(d.uploads||[]).length, b=tmpBytes();
+  openSheet(sheetHead('Clean app storage?',fmt(b)+' can be freed','storagePanel()')
+    +'<div class="empty" style="margin:1rem;text-align:left;line-height:1.55">\u2022 Saved upload copies and temporary video files are deleted.<br>\u2022 '+(n?tp(n,'pending upload')+' will be cancelled and removed from the server':'Any unfinished uploads on your account are cancelled and removed from the server')+(navigator.onLine?'.':' once you are back online.')+'<br>\u2022 Your downloads, login and settings are not touched.<br>\u2022 Your original videos on the phone are not touched.</div>'
+    +mrow('del','Clean now','This cannot be undone','cleanAppDo()',true)
+    +mrow('back','Keep my files','Go back','storagePanel()'));
+}
+function cleanAppDo(){ try { window.PichaTemp.deepClean(); } catch(e){} storagePanel(); }
 function activityPanel(){
   curPanel='act'; DATA=getDls();
   var run=DATA.filter(function(x){return x.status==='running';});
