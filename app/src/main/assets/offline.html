@@ -120,6 +120,10 @@
 #sheetWrap.full{align-items:stretch!important;justify-content:stretch!important}
 #sheetWrap.full .sheet{width:100%!important;max-width:none!important;height:100%!important;max-height:none!important;border-radius:0!important;overflow-y:auto!important}
 </style>
+<style>
+html.ppdeep{background:#0a0a0a!important}
+html.ppdeep body{visibility:hidden!important}
+</style>
 </head>
 <body>
   <div id="offlineView">
@@ -653,10 +657,21 @@ try{
     try { FROMSITE = true; } catch(e){}
     window.UP_DIRECT = false;
     if (typeof curPanel !== 'undefined' && curPanel === 'ups') return;
+    var de = document.documentElement;
+    de.classList.add('ppdeep');
+    var shown = false;
+    function reveal(){
+      if (shown) return; shown = true;
+      requestAnimationFrame(function(){ requestAnimationFrame(function(){ de.classList.remove('ppdeep'); }); });
+    }
+    setTimeout(reveal, 2500);
     setTimeout(function(){
       try { if ($('dlView').style.display !== 'block') showDownloads(); } catch(e){}
       try { manageMenu(); } catch(e){}
-      setTimeout(function(){ try { uploadsPanel(); } catch(e){} }, 120);
+      setTimeout(function(){
+        try { uploadsPanel(); } catch(e){}
+        reveal();
+      }, 120);
     }, 350);
   }
   go();
