@@ -116,6 +116,10 @@
   .ask .no { background:#2a2a2a; color:#fff; }
   .ask .yes { background:#ff5a5a; color:#111; }
 </style>
+<style>
+#sheetWrap.full{align-items:stretch!important;justify-content:stretch!important}
+#sheetWrap.full .sheet{width:100%!important;max-width:none!important;height:100%!important;max-height:none!important;border-radius:0!important;overflow-y:auto!important}
+</style>
 </head>
 <body>
   <div id="offlineView">
@@ -291,8 +295,8 @@ function deleteAll(){
 }
 function confirmDel(x){ ask('Delete "'+(x.title||'this download')+'" from this device?',function(){ rm(x.id); render(); initBtn(); }); }
 
-function openSheet(h){ $('sheet').innerHTML=h; $('sheetWrap').style.display='flex'; }
-function closeSheet(){ $('sheetWrap').style.display='none'; clearInterval(actTimer); curPanel=''; }
+function openSheet(h){ $('sheet').innerHTML=h; $('sheetWrap').style.display='flex'; $('sheetWrap').classList.toggle('full', String(h).indexOf('data-full')>-1); }
+function closeSheet(){ $('sheetWrap').style.display='none'; $('sheetWrap').classList.remove('full'); clearInterval(actTimer); curPanel=''; if(window.UP_DIRECT){ window.UP_DIRECT=false; setTimeout(function(){ history.back(); },0); } }
 function sheetHead(t,s,back){
   return '<div class="sh"><div class="shl">'+(back?'<button class="ibtn" onclick="'+back+'">'+svg('back')+'</button>':'')+'<div><div class="sht">'+esc(t)+'</div>'+(s?'<div class="shs">'+esc(s)+'</div>':'')+'</div></div><button class="xbtn" onclick="closeSheet()">'+svg('close')+'</button></div>';
 }
@@ -337,20 +341,25 @@ function uploadsPanel(){
   clearInterval(actTimer); curPanel='ups';
   var d=upData(), net='both'; UP=d.uploads||[];
   try { net=window.PichaTemp.getUploadNet()||'both'; } catch(e){}
-  var h=sheetHead('Manage my uploads',UP.length?tp(UP.length,'pending upload'):'No pending uploads','manageMenu()');
-  if(!UP.length) h+='<div class="empty" style="margin:2rem 1rem">No unfinished uploads.<br>Paused uploads appear here so you can finish them.</div>';
+  var h='<i hidden data-full></i>'+sheetHead('Manage my uploads',UP.length?tp(UP.length,'unfinished upload'):'Nothing waiting to finish',window.UP_DIRECT?'history.back()':'manageMenu()');
+  h+='<div class="sht" style="padding:1rem 1rem .3rem">Current uploads</div>';
+  if(!UP.length) h+='<div class="empty" style="margin:1rem">No unfinished uploads.<br>Uploads that pause appear here so you can finish them.</div>';
   UP.forEach(function(u,i){
     var days=Math.max(0,Math.ceil(((u.started||u.t||Date.now())+30*864e5-Date.now())/864e5));
-    h+='<div class="arow"><div class="arow1"><div class="ct1">'+esc(u.name)+'</div><button class="sb" onclick="upResume()">Resume</button> <button class="sb" onclick="upCancelAsk('+i+')">Cancel</button></div>'
+    h+='<div class="arow"><div class="arow1"><div class="ct1">'+esc(u.name)+'</div></div>'
       +'<div class="wp"><div style="width:'+(u.pct||0)+'%"></div></div>'
-      +'<small style="opacity:.7">'+(u.pct||0)+'% of '+fmt(u.size||0)+' \u00b7 '+days+' day'+(days===1?'':'s')+' left to finish</small></div>';
+      +'<div class="arow1"><small style="opacity:.7">'+(u.pct||0)+'% of '+fmt(u.size||0)+' \u00b7 '+days+' day'+(days===1?'':'s')+' left</small>'
+      +'<span><button class="sb" onclick="upResume()">Resume</button> <button class="sb" onclick="upCancelAsk('+i+')">Cancel</button></span></div></div>';
   });
   if(d.queued) h+='<div class="empty" style="margin:1rem">'+tp(d.queued,'cancelled upload')+' will be cleared from the server when you are online.</div>';
   h+='<div id="upmsg" class="empty" style="margin:.5rem 1rem"></div><div class="msep"></div>'
     +'<div class="sht" style="padding:.5rem 1rem">Auto-resume uploads on</div>'
     +upNetRow('both','Wi-Fi and mobile data','Resume whenever there is a connection',net)
     +upNetRow('wifi','Wi-Fi only','Save mobile data',net)
-    +upNetRow('mobile','Mobile data only','Skip Wi-Fi',net);
+    +upNetRow('mobile','Mobile data only','Skip Wi-Fi',net)
+    +'<div class="msep"></div><div class="sht" style="padding:.5rem 1rem">Storage</div>'
+    +'<div class="srow"><span>Saved upload copies</span><span>'+fmt(tmpBytes())+'</span></div>'
+    +mrow('clean','Clean app storage','Delete saved copies and cancel pending uploads','cleanAppAsk(1)');
   openSheet(h);
 }
 function upResume(){
@@ -359,7 +368,7 @@ function upResume(){
 }
 function upCancelAsk(i){
   var u=UP[i]; if(!u) return;
-  openSheet(sheetHead('Cancel this upload?',u.name,'uploadsPanel()')
+  openSheet('<i hidden data-full></i>'+sheetHead('Cancel this upload?',u.name,'uploadsPanel()')
     +'<div class="srow"><span>Progress</span><span>'+(u.pct||0)+'%</span></div>'
     +'<div class="srow"><span>Size</span><span>'+fmt(u.size||0)+'</span></div><div class="msep"></div>'
     +'<div class="empty" style="margin:1rem;text-align:left;line-height:1.55">\u2022 The saved copy in this app is deleted permanently.<br>\u2022 The part already uploaded is removed from our servers'+(navigator.onLine?'.':' once you are back online.')+'<br>\u2022 Your original video on the phone is not touched.</div>'
@@ -367,14 +376,14 @@ function upCancelAsk(i){
     +mrow('back','Keep uploading','Go back','uploadsPanel()'));
 }
 function upCancelDo(i){ var u=UP[i]; if(u){ try { window.PichaTemp.cancelUpload(u.key,u.uploadId); } catch(e){} } uploadsPanel(); }
-function cleanAppAsk(){
-  var d=upData(), n=(d.uploads||[]).length, b=tmpBytes();
-  openSheet(sheetHead('Clean app storage?',fmt(b)+' can be freed','storagePanel()')
+function cleanAppAsk(fromUps){
+  var d=upData(), n=(d.uploads||[]).length, b=tmpBytes(), back=fromUps?'uploadsPanel()':'storagePanel()';
+  openSheet((fromUps?'<i hidden data-full></i>':'')+sheetHead('Clean app storage?',fmt(b)+' can be freed',back)
     +'<div class="empty" style="margin:1rem;text-align:left;line-height:1.55">\u2022 Saved upload copies and temporary video files are deleted.<br>\u2022 '+(n?tp(n,'pending upload')+' will be cancelled and removed from the server':'Any unfinished uploads on your account are cancelled and removed from the server')+(navigator.onLine?'.':' once you are back online.')+'<br>\u2022 Your downloads, login and settings are not touched.<br>\u2022 Your original videos on the phone are not touched.</div>'
-    +mrow('del','Clean now','This cannot be undone','cleanAppDo()',true)
-    +mrow('back','Keep my files','Go back','storagePanel()'));
+    +mrow('del','Clean now','This cannot be undone','cleanAppDo('+(fromUps?1:0)+')',true)
+    +mrow('back','Keep my files','Go back',back));
 }
-function cleanAppDo(){ try { window.PichaTemp.deepClean(); } catch(e){} storagePanel(); }
+function cleanAppDo(fromUps){ try { window.PichaTemp.deepClean(); } catch(e){} if(fromUps) uploadsPanel(); else storagePanel(); }
 function activityPanel(){
   curPanel='act'; DATA=getDls();
   var run=DATA.filter(function(x){return x.status==='running';});
@@ -577,7 +586,7 @@ try{
   wrap("closeSheet",function(o){return function(){
     var r=o.apply(this,arguments);curP=null;sweep();return r;};});
 
-  ["manageMenu","storagePanel","activityPanel","cleanupPanel","episodes","cardMenu"].forEach(function(nm){
+  ["manageMenu","storagePanel","activityPanel","cleanupPanel","episodes","cardMenu","uploadsPanel","upCancelAsk","cleanAppAsk"].forEach(function(nm){
     wrap(nm,function(o){return function(){
       var me={nm:nm,args:[].slice.call(arguments)};
       if(!restoring&&sheetOpen()&&curP&&curP.nm!==nm){
@@ -634,7 +643,7 @@ try{
 (function(){
   function go(){
     if (location.hash !== '#uploads') return;
-    try { FROMSITE = true; } catch(e){}
+    try { FROMSITE = true; } catch(e){} window.UP_DIRECT = true;
     setTimeout(function(){ try { uploadsPanel(); } catch(e){} }, 350);
   }
   go();
