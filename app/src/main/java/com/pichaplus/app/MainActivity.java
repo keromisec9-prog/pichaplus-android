@@ -496,7 +496,16 @@ public class MainActivity extends AppCompatActivity {
             public boolean onShowFileChooser(WebView wv, ValueCallback<Uri[]> cb, FileChooserParams params) {
                 if (pichaFileCallback != null) pichaFileCallback.onReceiveValue(null);
                 pichaFileCallback = cb;
-                try { pichaFilePicker.launch(params.createIntent()); }
+                try {
+                    Intent pit = params.createIntent();
+                    String[] pat = params.getAcceptTypes();
+                    if (android.os.Build.VERSION.SDK_INT >= 33 && pat != null && pat.length > 0 && pat[0] != null
+                            && (pat[0].startsWith("video") || pat[0].contains("mp4"))) {
+                        pit = new Intent(android.provider.MediaStore.ACTION_PICK_IMAGES);
+                        pit.setType("video/*");
+                    }
+                    pichaFilePicker.launch(pit);
+                }
                 catch (Exception e) { pichaFileCallback = null; return false; }
                 return true;
             }
