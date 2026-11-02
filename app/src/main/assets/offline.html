@@ -435,7 +435,7 @@ function askClose(){ $('askWrap').style.display='none'; }
 
 window.addEventListener('focus',function(){ if($('dlView').style.display==='block'&&!curPanel) render(); });
 document.addEventListener('visibilitychange',function(){ if(!document.hidden&&$('dlView').style.display==='block'&&!curPanel) render(); });
-var FROMSITE = (location.hash === '#downloads');
+var FROMSITE = (location.hash === '#downloads' || location.hash === '#uploads');
 window.addEventListener('hashchange', function(){
   if (location.hash === '#downloads') { FROMSITE = true; showDownloads(); }
 });
@@ -630,5 +630,16 @@ try{
 })();
 </script>
 
+<script>
+(function(){
+  function go(){
+    if (location.hash !== '#uploads') return;
+    try { FROMSITE = true; } catch(e){}
+    setTimeout(function(){ try { uploadsPanel(); } catch(e){} }, 350);
+  }
+  go();
+  window.addEventListener('hashchange', go);
+})();
+</script>
 </body>
 </html>

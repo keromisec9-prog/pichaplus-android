@@ -220,6 +220,11 @@ public class MainActivity extends AppCompatActivity {
         }
 
         @JavascriptInterface
+        public void openUploads() {
+            runOnUiThread(() -> webView.loadUrl(OFFLINE_URL + "#uploads"));
+        }
+
+        @JavascriptInterface
         public void onSessionToken(String token) {
             if (token != null && !token.isEmpty() && !token.equals("null")) {
                 PichaTokenManager.saveSession(MainActivity.this, token);
