@@ -35,6 +35,9 @@ final class VideoCompressor {
     static final int MAX_SHORT_SIDE = 720;      // compress if shorter side is above this
     static final int MAX_BITRATE = 2_500_000;   // ...or bitrate above this (bits/s)
     static final int TARGET_BITRATE = 1_800_000;
+    static final double BITS_PER_PIXEL = 0.085;   // quality knob: higher = bigger, cleaner
+    static final long MIN_BITRATE = 1_200_000;
+    static final long MAX_TARGET_BITRATE = 3_000_000;
 
     interface Done { void onDone(Uri result); }
 
@@ -46,6 +49,12 @@ final class VideoCompressor {
     private static long num(MediaMetadataRetriever m, int key) {
         try { String s = m.extractMetadata(key); return s == null ? 0 : Long.parseLong(s); }
         catch (Exception e) { return 0; }
+    }
+
+    private static long sizeOf(Activity a, Uri u) {
+        try (android.content.res.AssetFileDescriptor fd = a.getContentResolver().openAssetFileDescriptor(u, "r")) {
+            return fd == null ? -1 : fd.getLength();
+        } catch (Exception e) { return -1; }
     }
 
     static void process(final Activity act, final Uri in, final Done done) {
@@ -61,13 +70,28 @@ final class VideoCompressor {
             m.release();
         } catch (Exception e) { done.onDone(in); return; }
 
+        double fps = 30;
+        try {
+            MediaMetadataRetriever m2 = new MediaMetadataRetriever();
+            m2.setDataSource(act, in);
+            String fs = m2.extractMetadata(MediaMetadataRetriever.METADATA_KEY_CAPTURE_FRAMERATE);
+            String fc = m2.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_FRAME_COUNT);
+            m2.release();
+            if (fs != null) fps = Double.parseDouble(fs);
+            else if (fc != null && dur > 0) fps = Long.parseLong(fc) * 1000.0 / dur;
+        } catch (Exception e) {}
+        if (fps < 15 || fps > 60) fps = 30;
+
         long dw = (rot == 90 || rot == 270) ? h : w;
         long dh = (rot == 90 || rot == 270) ? w : h;
         if (dw <= 0 || dh <= 0) { done.onDone(in); return; }
         boolean landscape = dh <= dw;
         long shortSide = Math.min(dw, dh);
         boolean tooBig = shortSide > MAX_SHORT_SIDE;
-        boolean tooHeavy = br > MAX_BITRATE;
+        int th0 = landscape ? (int) Math.min(dh, MAX_SHORT_SIDE) : (int) Math.min(dh, 1280);
+        double ow0 = dw * (double) th0 / dh;
+        final long targetBr = Math.max(MIN_BITRATE, Math.min(MAX_TARGET_BITRATE, (long) (th0 * ow0 * fps * BITS_PER_PIXEL)));
+        boolean tooHeavy = br > targetBr * 1.5;
         if (!tooBig && !tooHeavy) { done.onDone(in); return; }
 
         int targetH = landscape ? (int) Math.min(dh, MAX_SHORT_SIDE) : (int) Math.min(dh, 1280);
@@ -75,13 +99,14 @@ final class VideoCompressor {
         File dir = act.getCacheDir();
         File[] old = dir.listFiles();
         if (old != null) for (File f : old) if (f.getName().startsWith("cmp_")) f.delete();
-        long est = (long) (dur / 1000.0 * TARGET_BITRATE / 8.0 * 1.3);
+        long est = (long) (dur / 1000.0 * targetBr / 8.0 * 1.3);
         if (dir.getUsableSpace() < est) {
             Toast.makeText(act, "Not enough free space to optimise, uploading original", Toast.LENGTH_LONG).show();
             done.onDone(in);
             return;
         }
         final File out = new File(dir, "cmp_" + System.currentTimeMillis() + ".mp4");
+        final long inSize = sizeOf(act, in);
         final boolean[] finished = {false};
         final Handler hd = new Handler(Looper.getMainLooper());
         final Transformer[] tr = new Transformer[1];
@@ -112,13 +137,18 @@ final class VideoCompressor {
         tr[0] = new Transformer.Builder(act)
             .setVideoMimeType(MimeTypes.VIDEO_H264)
             .setEncoderFactory(new DefaultEncoderFactory.Builder(act)
-                .setRequestedVideoEncoderSettings(new VideoEncoderSettings.Builder().setBitrate(TARGET_BITRATE).build())
+                .setRequestedVideoEncoderSettings(new VideoEncoderSettings.Builder().setBitrate((int) targetBr).build())
                 .build())
             .addListener(new Transformer.Listener() {
                 @Override public void onCompleted(Composition c, ExportResult r) {
                     if (finished[0]) return;
                     finish.run();
-                    done.onDone(Uri.fromFile(out));
+                    if (inSize > 0 && out.length() >= inSize * 0.9) {
+                        out.delete();
+                        done.onDone(in);
+                    } else {
+                        done.onDone(Uri.fromFile(out));
+                    }
                 }
                 @Override public void onError(Composition c, ExportResult r, ExportException e) {
                     if (finished[0]) return;
