@@ -633,6 +633,13 @@ try{
     var r=o.apply(this,arguments);
     if(!was&&!fromSite()&&dlOpen())push({kind:"dl",close:function(){rawHide();}});
     return r;};});
+  window.__ppOfflineBack=function(){
+    if(!ST.length) return false;
+    var top=ST.pop(); qgo(1);
+    try{top.close();}catch(e){}
+    return true;
+  };
+
   wrap("hideDownloads",function(o){return function(){
     var r=o.apply(this,arguments);sweep();return r;};});
 }catch(e){}

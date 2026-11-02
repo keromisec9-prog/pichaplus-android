@@ -655,6 +655,15 @@ public class MainActivity extends AppCompatActivity {
     public void onBackPressed() {
         if (customView != null) {
             webView.getWebChromeClient().onHideCustomView();
+        } else if (webView.getUrl() != null && webView.getUrl().startsWith(OFFLINE_URL)) {
+            webView.evaluateJavascript(
+                "(function(){try{return !!(window.__ppOfflineBack&&window.__ppOfflineBack());}catch(e){return false;}})()",
+                new android.webkit.ValueCallback<String>() {
+                    @Override public void onReceiveValue(String v) {
+                        if ("true".equals(v)) return;
+                        if (webView.canGoBack()) webView.goBack(); else ppExitToast();
+                    }
+                });
         } else if (webView.canGoBack()) {
             webView.goBack();
         } else {
