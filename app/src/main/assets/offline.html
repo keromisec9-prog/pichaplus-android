@@ -643,8 +643,14 @@ try{
 (function(){
   function go(){
     if (location.hash !== '#uploads') return;
-    try { FROMSITE = true; } catch(e){} window.UP_DIRECT = true;
-    setTimeout(function(){ try { uploadsPanel(); } catch(e){} }, 350);
+    try { FROMSITE = true; } catch(e){}
+    window.UP_DIRECT = false;
+    if (typeof curPanel !== 'undefined' && curPanel === 'ups') return;
+    setTimeout(function(){
+      try { if ($('dlView').style.display !== 'block') showDownloads(); } catch(e){}
+      try { manageMenu(); } catch(e){}
+      setTimeout(function(){ try { uploadsPanel(); } catch(e){} }, 120);
+    }, 350);
   }
   go();
   window.addEventListener('hashchange', go);
