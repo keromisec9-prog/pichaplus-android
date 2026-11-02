@@ -385,6 +385,7 @@ public class MainActivity extends AppCompatActivity {
             @android.webkit.JavascriptInterface public long deepClean() { return UploadStore.deepClean(MainActivity.this); }
             @android.webkit.JavascriptInterface public long tempBytes() { return VideoCompressor.tempBytes(MainActivity.this); }
             @android.webkit.JavascriptInterface public String listCopies() { return VideoCompressor.listCopies(MainActivity.this); }
+            @android.webkit.JavascriptInterface public void deleteCopy(String name, long size) { VideoCompressor.deleteCopy(MainActivity.this, name, size); }
             @android.webkit.JavascriptInterface public String networkType() { return VideoCompressor.networkType(MainActivity.this); }
             @android.webkit.JavascriptInterface public void saveUpload(String json) { UploadStore.saveUpload(MainActivity.this, json); }
             @android.webkit.JavascriptInterface public void dropRecord(String key, String uploadId) { UploadStore.dropRecord(MainActivity.this, key, uploadId); }
