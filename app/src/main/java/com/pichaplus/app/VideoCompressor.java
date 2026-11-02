@@ -273,6 +273,8 @@ final class VideoCompressor {
         catch (Exception e) { return 0; }
     }
 
+    static String originalName(Activity a, Uri u) { return displayName(a, u); }
+
     private static String displayName(Activity a, Uri u) {
         try (android.database.Cursor c = a.getContentResolver().query(u, new String[]{android.provider.OpenableColumns.DISPLAY_NAME}, null, null, null)) {
             if (c != null && c.moveToFirst()) {

@@ -35,6 +35,7 @@ import com.google.android.gms.cast.framework.CastContext;
 
 public class MainActivity extends AppCompatActivity {
     private ValueCallback<Uri[]> pichaFileCallback;
+    static volatile String ppPickedName = "";
     private final ActivityResultLauncher<Intent> pichaFilePicker = registerForActivityResult(
         new ActivityResultContracts.StartActivityForResult(),
         new ActivityResultCallback<ActivityResult>() {
@@ -43,6 +44,7 @@ public class MainActivity extends AppCompatActivity {
                 Uri[] r = WebChromeClient.FileChooserParams.parseResult(result.getResultCode(), result.getData());
                 final ValueCallback<Uri[]> cbk = pichaFileCallback;
                 if (r != null && r.length == 1 && VideoCompressor.isVideo(MainActivity.this, r[0])) {
+                    ppPickedName = VideoCompressor.originalName(MainActivity.this, r[0]);
                     String why = VideoCompressor.blockReason(MainActivity.this, r[0]);
                     if (why != null) {
                         android.widget.Toast.makeText(MainActivity.this, why, android.widget.Toast.LENGTH_LONG).show();
@@ -374,6 +376,7 @@ public class MainActivity extends AppCompatActivity {
             @android.webkit.JavascriptInterface public void finishUpload(String key, String uploadId) { UploadStore.finishUpload(MainActivity.this, key, uploadId); }
             @android.webkit.JavascriptInterface public void cancelUpload(String key, String uploadId) { UploadStore.cancelUpload(MainActivity.this, key, uploadId); }
             @android.webkit.JavascriptInterface public String listUploads() { return UploadStore.list(MainActivity.this); }
+            @android.webkit.JavascriptInterface public String getPickedName() { String n = ppPickedName; ppPickedName = ""; return n == null ? "" : n; }
             @android.webkit.JavascriptInterface public String getUploadNet() { return UploadStore.getNet(MainActivity.this); }
             @android.webkit.JavascriptInterface public void setUploadNet(String v) { UploadStore.setNet(MainActivity.this, v); }
             @android.webkit.JavascriptInterface public boolean uploadAllowedNow() { return UploadStore.allowedNow(MainActivity.this); }
