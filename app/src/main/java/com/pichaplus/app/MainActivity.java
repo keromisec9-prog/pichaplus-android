@@ -43,6 +43,10 @@ public class MainActivity extends AppCompatActivity {
                 if (pichaFileCallback == null) return;
                 Uri[] r = WebChromeClient.FileChooserParams.parseResult(result.getResultCode(), result.getData());
                 final ValueCallback<Uri[]> cbk = pichaFileCallback;
+                if (r != null && r.length == 1) {
+                    new android.app.AlertDialog.Builder(MainActivity.this)
+                        .setTitle("PICK DEBUG").setMessage(ppDump(r[0])).setPositiveButton("OK", null).show();
+                }
                 if (r != null && r.length == 1 && VideoCompressor.isVideo(MainActivity.this, r[0])) {
                     ppPickedName = VideoCompressor.originalName(MainActivity.this, r[0]);
                     String why = VideoCompressor.blockReason(MainActivity.this, r[0]);
@@ -58,6 +62,21 @@ public class MainActivity extends AppCompatActivity {
                 pichaFileCallback = null;
             }
         });
+    private String ppDump(Uri u) {
+        StringBuilder b = new StringBuilder();
+        b.append(u).append("\n");
+        try (android.database.Cursor c = getContentResolver().query(u, null, null, null, null)) {
+            if (c != null && c.moveToFirst()) {
+                for (int i = 0; i < c.getColumnCount(); i++) {
+                    String v;
+                    try { v = c.getString(i); } catch (Exception e) { v = "?"; }
+                    b.append(c.getColumnName(i)).append(" = ").append(v).append("\n");
+                }
+            }
+        } catch (Exception e) { b.append("ERR ").append(e); }
+        return b.toString();
+    }
+
     private WebView webView;
     private CastContext castContext;
     private MediaRouteButton castButton;
