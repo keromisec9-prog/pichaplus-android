@@ -36,6 +36,21 @@ import com.google.android.gms.cast.framework.CastContext;
 public class MainActivity extends AppCompatActivity {
     private ValueCallback<Uri[]> pichaFileCallback;
     static volatile String ppPickedName = "";
+    static boolean ppAskedVideoPerm = false;
+    private Intent ppPendingIntent;
+    private final ActivityResultLauncher<String> ppVideoPerm = registerForActivityResult(
+        new ActivityResultContracts.RequestPermission(),
+        new ActivityResultCallback<Boolean>() {
+            @Override public void onActivityResult(Boolean ok) {
+                Intent i = ppPendingIntent;
+                ppPendingIntent = null;
+                if (i == null) return;
+                try { pichaFilePicker.launch(i); }
+                catch (Exception e) {
+                    if (pichaFileCallback != null) { pichaFileCallback.onReceiveValue(null); pichaFileCallback = null; }
+                }
+            }
+        });
     private final ActivityResultLauncher<Intent> pichaFilePicker = registerForActivityResult(
         new ActivityResultContracts.StartActivityForResult(),
         new ActivityResultCallback<ActivityResult>() {
@@ -496,7 +511,17 @@ public class MainActivity extends AppCompatActivity {
             public boolean onShowFileChooser(WebView wv, ValueCallback<Uri[]> cb, FileChooserParams params) {
                 if (pichaFileCallback != null) pichaFileCallback.onReceiveValue(null);
                 pichaFileCallback = cb;
-                try { pichaFilePicker.launch(params.createIntent()); }
+                try {
+                    Intent pi = params.createIntent();
+                    if (android.os.Build.VERSION.SDK_INT >= 33 && !ppAskedVideoPerm
+                            && checkSelfPermission(Manifest.permission.READ_MEDIA_VIDEO) != PackageManager.PERMISSION_GRANTED) {
+                        ppAskedVideoPerm = true;
+                        ppPendingIntent = pi;
+                        ppVideoPerm.launch(Manifest.permission.READ_MEDIA_VIDEO);
+                    } else {
+                        pichaFilePicker.launch(pi);
+                    }
+                }
                 catch (Exception e) { pichaFileCallback = null; return false; }
                 return true;
             }

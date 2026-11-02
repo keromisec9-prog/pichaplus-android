@@ -275,7 +275,24 @@ final class VideoCompressor {
 
     static String originalName(Activity a, Uri u) { return displayName(a, u); }
 
+    private static String mediaStoreName(Activity a, Uri u) {
+        try {
+            if (!u.toString().contains("photopicker")) return null;
+            long id = Long.parseLong(u.getLastPathSegment());
+            Uri mu = android.content.ContentUris.withAppendedId(android.provider.MediaStore.Video.Media.EXTERNAL_CONTENT_URI, id);
+            try (android.database.Cursor c = a.getContentResolver().query(mu, new String[]{android.provider.OpenableColumns.DISPLAY_NAME}, null, null, null)) {
+                if (c != null && c.moveToFirst()) {
+                    String n = c.getString(0);
+                    if (n != null && !n.isEmpty()) return n;
+                }
+            }
+        } catch (Exception e) {}
+        return null;
+    }
+
     private static String displayName(Activity a, Uri u) {
+        String real = mediaStoreName(a, u);
+        if (real != null) return real;
         try (android.database.Cursor c = a.getContentResolver().query(u, new String[]{android.provider.OpenableColumns.DISPLAY_NAME}, null, null, null)) {
             if (c != null && c.moveToFirst()) {
                 String n = c.getString(0);
