@@ -115,6 +115,38 @@ final class VideoCompressor {
         return null;
     }
 
+    static File findCopy(android.content.Context c, String name, long size) {
+        File[] ds = pendingRoot(c).listFiles();
+        if (ds != null) for (File d : ds) {
+            File[] fs = d.listFiles();
+            if (fs != null) for (File f : fs)
+                if (f.getName().equals(name) && f.length() == size) return f;
+        }
+        return null;
+    }
+
+    static void deleteCopy(android.content.Context c, String name, long size) {
+        File f = findCopy(c, name, size);
+        if (f != null) deleteTree(f.getParentFile());
+    }
+
+    // delete saved copies nobody refers to (older than 1 hour) and all conversion temp
+    static void sweepOrphans(android.content.Context c, java.util.Set<String> keep) {
+        long now = System.currentTimeMillis();
+        File[] ds = pendingRoot(c).listFiles();
+        if (ds != null) for (File d : ds) {
+            boolean used = false, fresh = now - d.lastModified() < 3600000L;
+            File[] fs = d.listFiles();
+            if (fs != null) for (File f : fs) {
+                if (keep.contains(f.getName() + "|" + f.length())) used = true;
+                if (now - f.lastModified() < 3600000L) fresh = true;
+            }
+            if (!used && !fresh) deleteTree(d);
+        }
+        File[] old = c.getCacheDir().listFiles();
+        if (old != null) for (File f : old) if (f.getName().startsWith("cmp_")) deleteTree(f);
+    }
+
     static long dirSize(File f) {
         if (f.isFile()) return f.length();
         long t = 0;

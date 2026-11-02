@@ -359,12 +359,27 @@ public class MainActivity extends AppCompatActivity {
             public void want(boolean b) { pp_wantKb = b; }
         }, "PPKb");
         webView.addJavascriptInterface(new Object() {
-            @android.webkit.JavascriptInterface public long clearUploadTemp() { return VideoCompressor.clearTemp(MainActivity.this); }
-            @android.webkit.JavascriptInterface public long deepClean() { return VideoCompressor.clearTemp(MainActivity.this); }
+            @android.webkit.JavascriptInterface public long clearUploadTemp() { UploadStore.sweepOrphans(MainActivity.this); return 0; }
+            @android.webkit.JavascriptInterface public long deepClean() { return UploadStore.deepClean(MainActivity.this); }
             @android.webkit.JavascriptInterface public long tempBytes() { return VideoCompressor.tempBytes(MainActivity.this); }
             @android.webkit.JavascriptInterface public String listCopies() { return VideoCompressor.listCopies(MainActivity.this); }
             @android.webkit.JavascriptInterface public String networkType() { return VideoCompressor.networkType(MainActivity.this); }
+            @android.webkit.JavascriptInterface public void saveUpload(String json) { UploadStore.saveUpload(MainActivity.this, json); }
+            @android.webkit.JavascriptInterface public void dropRecord(String key, String uploadId) { UploadStore.dropRecord(MainActivity.this, key, uploadId); }
+            @android.webkit.JavascriptInterface public void finishUpload(String key, String uploadId) { UploadStore.finishUpload(MainActivity.this, key, uploadId); }
+            @android.webkit.JavascriptInterface public void cancelUpload(String key, String uploadId) { UploadStore.cancelUpload(MainActivity.this, key, uploadId); }
+            @android.webkit.JavascriptInterface public String listUploads() { return UploadStore.list(MainActivity.this); }
+            @android.webkit.JavascriptInterface public String getUploadNet() { return UploadStore.getNet(MainActivity.this); }
+            @android.webkit.JavascriptInterface public void setUploadNet(String v) { UploadStore.setNet(MainActivity.this, v); }
+            @android.webkit.JavascriptInterface public boolean uploadAllowedNow() { return UploadStore.allowedNow(MainActivity.this); }
         }, "PichaTemp");
+        new Thread(() -> UploadStore.sweepOrphans(MainActivity.this)).start();
+        UploadStore.flush(this);
+        try {
+            ((android.net.ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE)).registerDefaultNetworkCallback(new android.net.ConnectivityManager.NetworkCallback() {
+                @Override public void onAvailable(android.net.Network n) { UploadStore.flush(MainActivity.this); }
+            });
+        } catch (Throwable t) {}
         ppWatchAutofill();
 
         webView.setDownloadListener(new DownloadListener() {
