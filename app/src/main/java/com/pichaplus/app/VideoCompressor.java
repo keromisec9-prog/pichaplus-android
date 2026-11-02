@@ -51,6 +51,31 @@ final class VideoCompressor {
         catch (Exception e) { return 0; }
     }
 
+    private static String displayName(Activity a, Uri u) {
+        try (android.database.Cursor c = a.getContentResolver().query(u, new String[]{android.provider.OpenableColumns.DISPLAY_NAME}, null, null, null)) {
+            if (c != null && c.moveToFirst()) {
+                String n = c.getString(0);
+                if (n != null && !n.isEmpty()) return n;
+            }
+        } catch (Exception e) {}
+        return "video.mp4";
+    }
+
+    private static String cleanName(String n) {
+        int dot = n.lastIndexOf('.');
+        String base = dot > 0 ? n.substring(0, dot) : n;
+        base = base.replaceAll("[^\\p{L}\\p{N}._ -]", "_").trim();
+        if (base.length() > 100) base = base.substring(0, 100);
+        if (base.isEmpty()) base = "video";
+        return base + ".mp4";
+    }
+
+    private static void deleteTree(File f) {
+        File[] k = f.listFiles();
+        if (k != null) for (File c : k) deleteTree(c);
+        f.delete();
+    }
+
     private static long sizeOf(Activity a, Uri u) {
         try (android.content.res.AssetFileDescriptor fd = a.getContentResolver().openAssetFileDescriptor(u, "r")) {
             return fd == null ? -1 : fd.getLength();
@@ -98,14 +123,16 @@ final class VideoCompressor {
 
         File dir = act.getCacheDir();
         File[] old = dir.listFiles();
-        if (old != null) for (File f : old) if (f.getName().startsWith("cmp_")) f.delete();
+        if (old != null) for (File f : old) if (f.getName().startsWith("cmp_")) deleteTree(f);
         long est = (long) (dur / 1000.0 * targetBr / 8.0 * 1.3);
         if (dir.getUsableSpace() < est) {
             Toast.makeText(act, "Not enough free space to optimise, uploading original", Toast.LENGTH_LONG).show();
             done.onDone(in);
             return;
         }
-        final File out = new File(dir, "cmp_" + System.currentTimeMillis() + ".mp4");
+        final File sub = new File(dir, "cmp_" + System.currentTimeMillis());
+        sub.mkdirs();
+        final File out = new File(sub, cleanName(displayName(act, in)));
         final long inSize = sizeOf(act, in);
         final boolean[] finished = {false};
         final Handler hd = new Handler(Looper.getMainLooper());
