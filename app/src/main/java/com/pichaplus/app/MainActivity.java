@@ -48,7 +48,7 @@ public class MainActivity extends AppCompatActivity {
                         android.widget.Toast.makeText(MainActivity.this, why, android.widget.Toast.LENGTH_LONG).show();
                         cbk.onReceiveValue(null);
                     } else {
-                        VideoCompressor.process(MainActivity.this, r[0], u -> cbk.onReceiveValue(u == null ? null : new Uri[]{u}));
+                        VideoCompressor.processAndKeep(MainActivity.this, r[0], u -> cbk.onReceiveValue(u == null ? null : new Uri[]{u}));
                     }
                 } else {
                     cbk.onReceiveValue(r);
@@ -358,6 +358,13 @@ public class MainActivity extends AppCompatActivity {
             @android.webkit.JavascriptInterface
             public void want(boolean b) { pp_wantKb = b; }
         }, "PPKb");
+        webView.addJavascriptInterface(new Object() {
+            @android.webkit.JavascriptInterface public long clearUploadTemp() { return VideoCompressor.clearTemp(MainActivity.this); }
+            @android.webkit.JavascriptInterface public long deepClean() { return VideoCompressor.clearTemp(MainActivity.this); }
+            @android.webkit.JavascriptInterface public long tempBytes() { return VideoCompressor.tempBytes(MainActivity.this); }
+            @android.webkit.JavascriptInterface public String listCopies() { return VideoCompressor.listCopies(MainActivity.this); }
+            @android.webkit.JavascriptInterface public String networkType() { return VideoCompressor.networkType(MainActivity.this); }
+        }, "PichaTemp");
         ppWatchAutofill();
 
         webView.setDownloadListener(new DownloadListener() {

@@ -90,6 +90,152 @@ final class VideoCompressor {
         done.onDone(null);
     }
 
+    // ---- independent app-owned copies (resumable uploads) ----
+    private static final long KEEP_MIN = 20L * 1024 * 1024;
+
+    private static File pendingRoot(android.content.Context c) {
+        File d = new File(c.getFilesDir(), "pending");
+        d.mkdirs();
+        return d;
+    }
+
+    private static String srcKey(Activity a, Uri u) {
+        try {
+            java.security.MessageDigest md = java.security.MessageDigest.getInstance("SHA-1");
+            byte[] h = md.digest((displayName(a, u) + "|" + sizeOf(a, u)).getBytes("UTF-8"));
+            StringBuilder sb = new StringBuilder();
+            for (int i = 0; i < 8; i++) sb.append(String.format("%02x", h[i]));
+            return sb.toString();
+        } catch (Exception e) { return "x" + System.currentTimeMillis(); }
+    }
+
+    private static File savedCopy(Activity a, Uri src) {
+        File[] fs = new File(pendingRoot(a), srcKey(a, src)).listFiles();
+        if (fs != null) for (File f : fs) if (!f.getName().endsWith(".part") && f.length() > 0) return f;
+        return null;
+    }
+
+    static long dirSize(File f) {
+        if (f.isFile()) return f.length();
+        long t = 0;
+        File[] k = f.listFiles();
+        if (k != null) for (File c : k) t += dirSize(c);
+        return t;
+    }
+
+    static long clearTemp(android.content.Context c) {
+        long freed = dirSize(pendingRoot(c));
+        deleteTree(pendingRoot(c));
+        File[] old = c.getCacheDir().listFiles();
+        if (old != null) for (File f : old) if (f.getName().startsWith("cmp_")) { freed += dirSize(f); deleteTree(f); }
+        return freed;
+    }
+
+    static long tempBytes(android.content.Context c) {
+        long t = dirSize(pendingRoot(c));
+        File[] old = c.getCacheDir().listFiles();
+        if (old != null) for (File f : old) if (f.getName().startsWith("cmp_")) t += dirSize(f);
+        return t;
+    }
+
+    static String listCopies(android.content.Context c) {
+        org.json.JSONArray arr = new org.json.JSONArray();
+        File[] ds = pendingRoot(c).listFiles();
+        if (ds != null) for (File d : ds) {
+            File[] fs = d.listFiles();
+            if (fs == null) continue;
+            for (File f : fs) if (!f.getName().endsWith(".part")) {
+                try { arr.put(new org.json.JSONObject().put("name", f.getName()).put("size", f.length()).put("mtime", f.lastModified())); }
+                catch (Exception e) {}
+            }
+        }
+        return arr.toString();
+    }
+
+    static String networkType(android.content.Context c) {
+        try {
+            android.net.ConnectivityManager cm = (android.net.ConnectivityManager) c.getSystemService(android.content.Context.CONNECTIVITY_SERVICE);
+            android.net.Network n = cm.getActiveNetwork();
+            if (n == null) return "none";
+            android.net.NetworkCapabilities nc = cm.getNetworkCapabilities(n);
+            if (nc == null) return "none";
+            if (nc.hasTransport(android.net.NetworkCapabilities.TRANSPORT_WIFI) || nc.hasTransport(android.net.NetworkCapabilities.TRANSPORT_ETHERNET)) return "wifi";
+            if (nc.hasTransport(android.net.NetworkCapabilities.TRANSPORT_CELLULAR)) return "mobile";
+            return "other";
+        } catch (Exception e) { return "unknown"; }
+    }
+
+    // like process(), but the result is a copy the app owns (for files big enough to need resume)
+    static void processAndKeep(final Activity act, final Uri src, final Done done) {
+        final File saved = savedCopy(act, src);
+        if (saved != null) { done.onDone(Uri.fromFile(saved)); return; }
+        process(act, src, u -> {
+            if (u == null) { done.onDone(null); return; }
+            keep(act, src, u, done);
+        });
+    }
+
+    private static void keep(final Activity act, final Uri src, final Uri u, final Done done) {
+        final boolean isFile = "file".equals(u.getScheme());
+        final long size = isFile ? new File(u.getPath()).length() : sizeOf(act, u);
+        if (size <= KEEP_MIN) { done.onDone(u); return; }
+        final File dir = new File(pendingRoot(act), srcKey(act, src));
+        dir.mkdirs();
+        final File dst = new File(dir, cleanName(displayName(act, src)));
+        if (isFile) {
+            File f = new File(u.getPath());
+            if (f.renameTo(dst)) {
+                deleteTree(f.getParentFile());
+                done.onDone(Uri.fromFile(dst));
+                return;
+            }
+        }
+        if (act.getFilesDir().getUsableSpace() < size + 64L * 1024 * 1024) {
+            Toast.makeText(act, "Not enough space to keep a resumable copy. Uploading without resume protection.", Toast.LENGTH_LONG).show();
+            done.onDone(u);
+            return;
+        }
+        final AlertDialog dlg = new AlertDialog.Builder(act)
+            .setTitle("Preparing video")
+            .setMessage("Saving a copy so the upload can resume... 0%")
+            .setCancelable(false)
+            .create();
+        dlg.show();
+        final File tmp = new File(dir, dst.getName() + ".part");
+        new Thread(() -> {
+            boolean ok = false;
+            try (java.io.InputStream in = act.getContentResolver().openInputStream(u);
+                 java.io.OutputStream os = new java.io.FileOutputStream(tmp)) {
+                byte[] buf = new byte[1 << 16];
+                int n;
+                long copied = 0;
+                int lastPct = -1;
+                while ((n = in.read(buf)) > 0) {
+                    os.write(buf, 0, n);
+                    copied += n;
+                    final int pct = (int) (copied * 100 / size);
+                    if (pct != lastPct) {
+                        lastPct = pct;
+                        act.runOnUiThread(() -> dlg.setMessage("Saving a copy so the upload can resume... " + pct + "%"));
+                    }
+                }
+                ok = true;
+            } catch (Exception e) {}
+            final boolean good = ok && tmp.renameTo(dst);
+            act.runOnUiThread(() -> {
+                try { dlg.dismiss(); } catch (Exception e) {}
+                if (good) {
+                    if (isFile) deleteTree(new File(u.getPath()).getParentFile());
+                    done.onDone(Uri.fromFile(dst));
+                } else {
+                    deleteTree(dir);
+                    Toast.makeText(act, "Couldn't save a resumable copy. Uploading without resume protection.", Toast.LENGTH_LONG).show();
+                    done.onDone(u);
+                }
+            });
+        }).start();
+    }
+
     private static long num(MediaMetadataRetriever m, int key) {
         try { String s = m.extractMetadata(key); return s == null ? 0 : Long.parseLong(s); }
         catch (Exception e) { return 0; }
