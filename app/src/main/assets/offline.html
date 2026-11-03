@@ -115,6 +115,18 @@
   .ask button { border:none; border-radius:8px; padding:0.65rem 1.2rem; font-weight:700; font-size:0.95rem; }
   .ask .no { background:#2a2a2a; color:#fff; }
   .ask .yes { background:#ff5a5a; color:#111; }
+
+  .upsearch { margin:.4rem 1.2rem .6rem; }
+  .upsearch input { width:100%; box-sizing:border-box; background:#111; border:1px solid #333; color:#fff; border-radius:14px; padding:.7rem 1rem; font-size:.95rem; outline:none; }
+  .uph { color:#888; font-size:.8rem; letter-spacing:.08em; font-weight:700; padding:.9rem 1.2rem .3rem; }
+  .upr2 { display:flex; align-items:center; gap:.8rem; padding:.7rem 1.2rem; border-bottom:1px solid #242424; }
+  .upth { width:52px; height:52px; flex:none; border-radius:10px; background:#2a2418; display:flex; align-items:center; justify-content:center; font-size:1.5rem; }
+  .upm { flex:1; min-width:0; }
+  .upt { font-weight:600; font-size:1rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .ups { color:#e5b93c; font-size:.82rem; margin:2px 0 4px; }
+  .upz { color:#888; font-size:.78rem; margin-top:4px; }
+  .upa { display:flex; align-items:center; gap:.3rem; flex:none; }
+  .upd { background:none; border:none; color:#aaa; font-size:1.5rem; padding:.2rem .5rem; }
 </style>
 <style>
 #sheetWrap.full{align-items:stretch!important;justify-content:stretch!important}
@@ -341,20 +353,51 @@ function upNetRow(v,t,s,cur){
   return '<button class="mrow" data-v="'+v+'" onclick="setUpNet(this.dataset.v)"><span><b>'+t+'</b><small>'+s+'</small></span>'+(cur===v?'<b style="color:#f0b429;font-size:1.3rem">\u2713</b>':'')+'</button>';
 }
 function setUpNet(v){ try { window.PichaTemp.setUploadNet(v); } catch(e){} uploadsPanel(); }
+var upQ='';
+function upDay(ts){
+  var d=new Date(ts), n=new Date();
+  var a=new Date(d.getFullYear(),d.getMonth(),d.getDate()).getTime(), b=new Date(n.getFullYear(),n.getMonth(),n.getDate()).getTime();
+  var diff=Math.round((b-a)/864e5);
+  return diff<=0?'Today':(diff===1?'Yesterday':'Earlier');
+}
+function upRows(){
+  if(!UP.length) return '<div class="empty" style="margin:1.5rem 1rem">No unfinished uploads.<br>Uploads that pause appear here so you can finish them.</div>';
+  var q=upQ.trim().toLowerCase(), groups={Today:[],Yesterday:[],Earlier:[]}, any=false;
+  UP.forEach(function(u,i){
+    if(q && (u.name||'').toLowerCase().indexOf(q)<0) return;
+    any=true; groups[upDay(u.started||u.t||Date.now())].push(i);
+  });
+  if(!any) return '<div class="empty" style="margin:1.5rem 1rem">No uploads match your search.</div>';
+  var h='';
+  ['Today','Yesterday','Earlier'].forEach(function(g){
+    if(!groups[g].length) return;
+    h+='<div class="uph">'+g.toUpperCase()+'</div>';
+    groups[g].forEach(function(i){
+      var u=UP[i], pct=u.pct||0;
+      var days=Math.max(0,Math.ceil(((u.started||u.t||Date.now())+30*864e5-Date.now())/864e5));
+      h+='<div class="upr2"><div class="upth">\ud83c\udfac</div><div class="upm"><div class="upt">'+esc(u.name)+'</div>'
+        +'<div class="ups">Paused \u00b7 '+pct+'%</div>'
+        +'<div class="wp"><div style="width:'+pct+'%"></div></div>'
+        +'<div class="upz">'+fmt(u.size||0)+' \u00b7 '+days+' day'+(days===1?'':'s')+' left</div></div>'
+        +'<div class="upa"><button class="sb" onclick="upResume()">Resume</button><button class="upd" onclick="upMenu('+i+')">\u22ee</button></div></div>';
+    });
+  });
+  return h;
+}
+function upFilter(v){ upQ=v; var el=document.getElementById('uplist'); if(el) el.innerHTML=upRows(); }
+function upMenu(i){
+  var u=UP[i]; if(!u) return;
+  openSheet('<i hidden data-full></i>'+sheetHead(u.name,(u.pct||0)+'% of '+fmt(u.size||0),'uploadsPanel()')
+    +mrow('sort','Resume upload','Continue where it stopped','upResume()')
+    +mrow('del','Cancel and delete','Removes the saved copy and the uploaded part','upCancelAsk('+i+')',true));
+}
 function uploadsPanel(){
-  clearInterval(actTimer); curPanel='ups';
+  clearInterval(actTimer); curPanel='ups'; upQ='';
   var d=upData(), net='both'; UP=d.uploads||[];
   try { net=window.PichaTemp.getUploadNet()||'both'; } catch(e){}
-  var h='<i hidden data-full></i>'+sheetHead('Manage my uploads',UP.length?tp(UP.length,'unfinished upload'):'Nothing waiting to finish',window.UP_DIRECT?'history.back()':'manageMenu()');
-  h+='<div class="sht" style="padding:1rem 1rem .3rem">Current uploads</div>';
-  if(!UP.length) h+='<div class="empty" style="margin:1rem">No unfinished uploads.<br>Uploads that pause appear here so you can finish them.</div>';
-  UP.forEach(function(u,i){
-    var days=Math.max(0,Math.ceil(((u.started||u.t||Date.now())+30*864e5-Date.now())/864e5));
-    h+='<div class="arow"><div class="arow1"><div class="ct1">'+esc(u.name)+'</div></div>'
-      +'<div class="wp"><div style="width:'+(u.pct||0)+'%"></div></div>'
-      +'<div class="arow1"><small style="opacity:.7">'+(u.pct||0)+'% of '+fmt(u.size||0)+' \u00b7 '+days+' day'+(days===1?'':'s')+' left</small>'
-      +'<span><button class="sb" onclick="upResume()">Resume</button> <button class="sb" onclick="upCancelAsk('+i+')">Cancel</button></span></div></div>';
-  });
+  var h='<i hidden data-full></i>'+sheetHead('Upload history',UP.length?tp(UP.length,'unfinished upload'):'Nothing waiting to finish',window.UP_DIRECT?'history.back()':'manageMenu()');
+  h+='<div class="upsearch"><input type="search" placeholder="Search uploads\u2026" oninput="upFilter(this.value)"></div>';
+  h+='<div id="uplist">'+upRows()+'</div>';
   if(d.queued) h+='<div class="empty" style="margin:1rem">'+tp(d.queued,'cancelled upload')+' will be cleared from the server when you are online.</div>';
   h+='<div id="upmsg" class="empty" style="margin:.5rem 1rem"></div><div class="msep"></div>'
     +'<div class="sht" style="padding:.5rem 1rem">Auto-resume uploads on</div>'
