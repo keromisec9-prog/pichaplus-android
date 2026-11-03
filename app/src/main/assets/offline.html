@@ -208,6 +208,13 @@
   .dkm .tx b { display:block; font-size:.85rem; font-weight:600; }
   .dkm .tx small { display:block; color:#9a9aae; font-size:.7rem; }
   .dkm > .msr:last-child { color:#8d8da0; font-size:18px; }
+
+  #sheetWrap.ups .sheet { overflow-y:auto; }
+  #sheetWrap.ups .sh { position:sticky; top:0; z-index:3; background:#1a1a1a; }
+  #sheetWrap.ups .sht { font-size:.85rem; }
+  .upmid { flex:1 0 auto; overflow:visible; min-height:0; }
+  .upmore { display:block; margin:.7rem auto .4rem; background:none; border:1px solid rgba(240,180,41,.6); color:#f0b429; border-radius:999px; padding:.35rem 1.1rem; font-size:.8rem; font-weight:600; }
+  .upmorerow { display:flex; justify-content:center; gap:.6rem; }
 </style>
 <style>
 #sheetWrap.full{align-items:stretch!important;justify-content:stretch!important}
@@ -449,22 +456,24 @@ function upDay(ts){
   var diff=Math.round((b-a)/864e5);
   return diff<=0?'Today':(diff===1?'Yesterday':'Earlier');
 }
+var upN=5;
 function upRows(){
   if(!UP.length) return '<div class="empty" style="margin:1.5rem 1rem">No unfinished uploads.<br>Uploads that pause appear here so you can finish them.</div>';
-  var q=upQ.trim().toLowerCase(), groups={Today:[],Yesterday:[],Earlier:[]}, any=false;
+  var q=upQ.trim().toLowerCase(), groups={Today:[],Yesterday:[],Earlier:[]}, total=0;
   UP.forEach(function(u,i){
     if(q && (u.name||'').toLowerCase().indexOf(q)<0) return;
-    any=true; groups[upDay(u.started||u.t||Date.now())].push(i);
+    groups[upDay(u.started||u.t||Date.now())].push(i); total++;
   });
-  if(!any) return '<div class="empty" style="margin:1.5rem 1rem">No uploads match your search.</div>';
+  if(!total) return '<div class="empty" style="margin:1.5rem 1rem">No uploads match your search.</div>';
   var playSvg='<span class="msr" style="font-size:28px">play_circle</span>';
   var dotsSvg='<span class="msr" style="font-size:20px">more_vert</span>';
   var pauseSvg='<span class="msr f" style="font-size:14px">pause</span>';
-  var h='';
+  var h='', shown=0;
   ['Today','Yesterday','Earlier'].forEach(function(g){
-    if(!groups[g].length) return;
+    var part=groups[g].filter(function(){ return shown++ < upN; });
+    if(!part.length) return;
     h+='<div class="uph">'+g+'</div>';
-    groups[g].forEach(function(i){
+    part.forEach(function(i){
       var u=UP[i], pct=u.pct||0, st=u.started||u.t||Date.now();
       var days=Math.max(0,Math.ceil((st+30*864e5-Date.now())/864e5));
       var done=Math.round((u.size||0)*pct/100);
@@ -479,9 +488,16 @@ function upRows(){
         +'<button class="upbtn" style="color:rgba(255,255,255,.6)" title="More" onclick="upMenu('+i+')">'+dotsSvg+'</button></div>';
     });
   });
+  var more=total>upN, less=upN>5;
+  if(more||less){
+    h+='<div class="upmorerow">'+(more?'<button class="upmore" onclick="upMore()">Show more</button>':'')+(less?'<button class="upmore" onclick="upLess()">Show less</button>':'')+'</div>';
+  }
   return h;
 }
-function upFilter(v){ upQ=v; var el=document.getElementById('uplist'); if(el) el.innerHTML=upRows(); }
+function upRefresh(){ var el=document.getElementById('uplist'); if(el) el.innerHTML=upRows(); }
+function upMore(){ upN+=5; upRefresh(); }
+function upLess(){ upN=5; upRefresh(); }
+function upFilter(v){ upQ=v; upN=5; upRefresh(); }
 function upMenu(i){
   var u=UP[i]; if(!u) return;
   openSheet('<i hidden data-full></i>'+sheetHead(u.name,(u.pct||0)+'% of '+fmt(u.size||0),'uploadsPanel()')
@@ -489,7 +505,7 @@ function upMenu(i){
     +mrow('del','Cancel and delete','Removes the saved copy and the uploaded part','upCancelAsk('+i+')',true));
 }
 function uploadsPanel(){
-  clearInterval(actTimer); curPanel='ups'; upQ='';
+  clearInterval(actTimer); curPanel='ups'; upQ=''; upN=5;
   var d=upData(), net='both'; UP=d.uploads||[];
   try { net=window.PichaTemp.getUploadNet()||'both'; } catch(e){}
   var back=window.UP_DIRECT?'history.back()':'manageMenu()';
