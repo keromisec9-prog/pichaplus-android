@@ -127,6 +127,20 @@
   .upz { color:#888; font-size:.78rem; margin-top:4px; }
   .upa { display:flex; align-items:center; gap:.3rem; flex:none; }
   .upd { background:none; border:none; color:#aaa; font-size:1.5rem; padding:.2rem .5rem; }
+
+  .uph { font-size:.7rem; font-weight:700; color:rgba(255,255,255,.5); letter-spacing:.08em; text-transform:uppercase; padding:1.1rem 1.2rem .5rem; }
+  .upsearch { position:relative; margin:.4rem 1.2rem .6rem; }
+  .upsearch svg { position:absolute; left:.9rem; top:50%; transform:translateY(-50%); width:18px; height:18px; color:#888; }
+  .upsearch input { padding-left:2.6rem; border-radius:14px; background:#141414; border:1px solid rgba(255,255,255,.12); }
+  .upr2 { gap:.9rem; padding:1rem 1.2rem; border-bottom:1px solid rgba(255,255,255,.05); }
+  .upth2 { position:relative; flex:none; width:54px; height:78px; border-radius:5px; background:#1e1e1e; display:flex; align-items:center; justify-content:center; font-size:1.5rem; }
+  .upth2 .bar { position:absolute; left:0; right:0; bottom:0; height:4px; background:rgba(255,255,255,.2); border-radius:0 0 5px 5px; overflow:hidden; }
+  .upth2 .bar i { display:block; height:100%; background:linear-gradient(90deg,#e5b93c,#f5d97a); }
+  .uptitle { font-size:.92rem; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .uppill { display:inline-flex; align-items:center; gap:.25rem; border:1px solid rgba(229,185,60,.45); color:rgba(229,185,60,.75); border-radius:999px; padding:.15rem .6rem; font-size:.68rem; font-weight:600; margin-top:4px; }
+  .upl1 { font-size:.74rem; color:rgba(255,255,255,.7); margin-top:4px; }
+  .upl2 { font-size:.68rem; color:rgba(255,255,255,.32); margin-top:2px; }
+  .upbtn { flex:none; background:none; border:none; padding:.2rem; display:flex; align-items:center; justify-content:center; }
 </style>
 <style>
 #sheetWrap.full{align-items:stretch!important;justify-content:stretch!important}
@@ -368,18 +382,26 @@ function upRows(){
     any=true; groups[upDay(u.started||u.t||Date.now())].push(i);
   });
   if(!any) return '<div class="empty" style="margin:1.5rem 1rem">No uploads match your search.</div>';
+  var playSvg='<svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><path d="M10 8l6 4-6 4z" fill="currentColor"/></svg>';
+  var dotsSvg='<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg>';
+  var pauseSvg='<svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor"><rect x="6" y="5" width="4" height="14"/><rect x="14" y="5" width="4" height="14"/></svg>';
   var h='';
   ['Today','Yesterday','Earlier'].forEach(function(g){
     if(!groups[g].length) return;
-    h+='<div class="uph">'+g.toUpperCase()+'</div>';
+    h+='<div class="uph">'+g+'</div>';
     groups[g].forEach(function(i){
-      var u=UP[i], pct=u.pct||0;
-      var days=Math.max(0,Math.ceil(((u.started||u.t||Date.now())+30*864e5-Date.now())/864e5));
-      h+='<div class="upr2"><div class="upth">\ud83c\udfac</div><div class="upm"><div class="upt">'+esc(u.name)+'</div>'
-        +'<div class="ups">Paused \u00b7 '+pct+'%</div>'
-        +'<div class="wp"><div style="width:'+pct+'%"></div></div>'
-        +'<div class="upz">'+fmt(u.size||0)+' \u00b7 '+days+' day'+(days===1?'':'s')+' left</div></div>'
-        +'<div class="upa"><button class="sb" onclick="upResume()">Resume</button><button class="upd" onclick="upMenu('+i+')">\u22ee</button></div></div>';
+      var u=UP[i], pct=u.pct||0, st=u.started||u.t||Date.now();
+      var days=Math.max(0,Math.ceil((st+30*864e5-Date.now())/864e5));
+      var done=Math.round((u.size||0)*pct/100);
+      var tm=new Date(st).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
+      h+='<div class="upr2">'
+        +'<div class="upth2">\ud83c\udfac<div class="bar"><i style="width:'+pct+'%"></i></div></div>'
+        +'<div class="upm"><div class="uptitle">'+esc(u.name)+'</div>'
+        +'<div class="uppill">'+pauseSvg+'Paused</div>'
+        +'<div class="upl1">'+pct+'% \u00b7 '+fmt(done)+' of '+fmt(u.size||0)+'</div>'
+        +'<div class="upl2">'+g+' '+tm+' \u00b7 '+days+' day'+(days===1?'':'s')+' left</div></div>'
+        +'<button class="upbtn" style="color:#e5b93c" title="Resume" onclick="upResume()">'+playSvg+'</button>'
+        +'<button class="upbtn" style="color:rgba(255,255,255,.6)" title="More" onclick="upMenu('+i+')">'+dotsSvg+'</button></div>';
     });
   });
   return h;
@@ -396,7 +418,7 @@ function uploadsPanel(){
   var d=upData(), net='both'; UP=d.uploads||[];
   try { net=window.PichaTemp.getUploadNet()||'both'; } catch(e){}
   var h='<i hidden data-full></i>'+sheetHead('Upload history',UP.length?tp(UP.length,'unfinished upload'):'Nothing waiting to finish',window.UP_DIRECT?'history.back()':'manageMenu()');
-  h+='<div class="upsearch"><input type="search" placeholder="Search uploads\u2026" oninput="upFilter(this.value)"></div>';
+  h+='<div class="upsearch"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg><input type="search" placeholder="Search uploads\u2026" oninput="upFilter(this.value)"></div>';
   h+='<div id="uplist">'+upRows()+'</div>';
   if(d.queued) h+='<div class="empty" style="margin:1rem">'+tp(d.queued,'cancelled upload')+' will be cleared from the server when you are online.</div>';
   h+='<div id="upmsg" class="empty" style="margin:.5rem 1rem"></div><div class="msep"></div>'
