@@ -273,7 +273,7 @@ function render(){
     card.innerHTML=(x.poster?'<img class="poster" src="'+x.poster+'">':'<div class="poster"></div>')+
       '<div class="info"><div class="ct">'+esc(p.base)+'</div>'+
       '<div class="cm">'+(p.ep?'Episode '+p.ep+' \u00b7 ':'')+fmt(sz(x))+'</div>'+
-      '<div class="ok'+(isDone?'':' run')+'">'+(isDone?svg('check')+'Available offline':'Downloading\u2026 '+dl+'%')+'</div>'+
+      (isDone?'':'<div class="ok run">Downloading\u2026 '+dl+'%</div>')+
       (isDone?'<div class="when">'+esc(whenTxt(x))+'</div>':'')+
       (isDone&&pct>0?'<div class="wp"><div style="width:'+pct+'%"></div></div>':'')+'</div>'+
       (selecting?'<div class="chk'+(sel[x.id]?' on':'')+'">'+(sel[x.id]?svg('tick'):'')+'</div>':(isDone?'<button class="go">'+svg('play')+'</button>':'')+'<button class="more">'+svg('kebab')+'</button>');
