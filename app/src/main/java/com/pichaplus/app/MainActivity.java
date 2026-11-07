@@ -227,6 +227,11 @@ public class MainActivity extends AppCompatActivity {
         }
 
         @JavascriptInterface
+        public boolean downloadExists(long id) {
+            return PichaDownloads.exists(MainActivity.this, id);
+        }
+
+        @JavascriptInterface
         public void removeDownload(long id) {
             PichaDownloads.remove(MainActivity.this, id);
         }
