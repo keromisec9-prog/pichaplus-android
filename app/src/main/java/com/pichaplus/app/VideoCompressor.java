@@ -383,7 +383,6 @@ final class VideoCompressor {
             .setTitle("Optimising video")
             .setMessage("Starting... keep the app open")
             .setCancelable(false)
-            .setNegativeButton("Skip", null)
             .create();
         dlg.show();
         act.getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
@@ -393,14 +392,6 @@ final class VideoCompressor {
             try { dlg.dismiss(); } catch (Exception e) {}
             act.getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         }};
-
-        dlg.getButton(AlertDialog.BUTTON_NEGATIVE).setOnClickListener(new android.view.View.OnClickListener() {
-            public void onClick(android.view.View v) {
-                if (finished[0]) return;
-                try { tr[0].cancel(); } catch (Exception e) {}
-                finish.run(); out.delete(); giveUp(act, in, done, "Conversion cancelled");
-            }
-        });
 
         tr[0] = new Transformer.Builder(act)
             .setVideoMimeType(MimeTypes.VIDEO_H264)
@@ -439,5 +430,180 @@ final class VideoCompressor {
                 dlg.setMessage("Optimising... " + ph.progress + "%\nKeep the app open");
             hd.postDelayed(this, 500);
         }});
+    }
+
+    // ---- Studio preview clip: 30s from the 27% mark, uploaded beside the movie ----
+    interface PvDone { void on(boolean ok); }
+    private static final String PV_WORKER = "https://picha-plus-worker.kerosoftz522.workers.dev";
+
+    static void processWithPreview(final Activity act, final Uri src, final Done done) {
+        MainActivity.ppPickedFolder = "";
+        if (savedCopy(act, src) != null) { processAndKeep(act, src, done); return; }
+        final String folder = java.util.UUID.randomUUID().toString();
+        processAndKeep(act, src, u -> {
+            if (u == null) { done.onDone(null); return; }
+            makePreview(act, u, folder, ok -> {
+                if (!ok) { done.onDone(null); return; }
+                MainActivity.ppPickedFolder = folder;
+                done.onDone(u);
+            });
+        });
+    }
+
+    private static void pvFinish(Activity act, AlertDialog dlg, File sub, boolean ok, PvDone cb) {
+        try { dlg.dismiss(); } catch (Exception e) {}
+        act.getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        deleteTree(sub);
+        if (!ok) Toast.makeText(act, "Couldn't create the preview. Please pick the video again.", Toast.LENGTH_LONG).show();
+        cb.on(ok);
+    }
+
+    private static String pvRead(java.io.InputStream is) throws Exception {
+        if (is == null) return "";
+        java.io.ByteArrayOutputStream bo = new java.io.ByteArrayOutputStream();
+        byte[] b = new byte[4096];
+        int n;
+        while ((n = is.read(b)) > 0) bo.write(b, 0, n);
+        is.close();
+        return bo.toString("UTF-8");
+    }
+
+    private static void makePreview(final Activity act, final Uri in, final String folder, final PvDone cb) {
+        long w = 0, h = 0, rot = 0, dur = 0;
+        try {
+            MediaMetadataRetriever m = new MediaMetadataRetriever();
+            m.setDataSource(act, in);
+            w = num(m, MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH);
+            h = num(m, MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT);
+            rot = num(m, MediaMetadataRetriever.METADATA_KEY_VIDEO_ROTATION);
+            dur = num(m, MediaMetadataRetriever.METADATA_KEY_DURATION);
+            m.release();
+        } catch (Exception e) {}
+        final long dw = (rot == 90 || rot == 270) ? h : w;
+        final long dh = (rot == 90 || rot == 270) ? w : h;
+        if (dur <= 0 || dw <= 0 || dh <= 0) {
+            Toast.makeText(act, "Couldn't create the preview. Please pick the video again.", Toast.LENGTH_LONG).show();
+            cb.on(false);
+            return;
+        }
+        final int cap = dh <= dw ? 480 : 854;
+        final long startMs = Math.max(0L, Math.min((long) (dur * 0.27), dur - 30000L));
+        final long endMs = Math.min(dur, startMs + 30000L);
+
+        File cache = act.getCacheDir();
+        File[] old = cache.listFiles();
+        if (old != null) for (File f : old) if (f.getName().startsWith("pvclip_")) deleteTree(f);
+        if (cache.getUsableSpace() < 80L * 1024 * 1024) {
+            Toast.makeText(act, "Not enough free space to create the preview", Toast.LENGTH_LONG).show();
+            cb.on(false);
+            return;
+        }
+        final File sub = new File(cache, "pvclip_" + System.currentTimeMillis());
+        sub.mkdirs();
+        final File out = new File(sub, "preview.mp4");
+        final boolean[] finished = {false};
+        final Handler hd = new Handler(Looper.getMainLooper());
+        final Transformer[] tr = new Transformer[1];
+
+        final AlertDialog dlg = new AlertDialog.Builder(act)
+            .setTitle("Creating preview")
+            .setMessage("Starting... keep the app open")
+            .setCancelable(false)
+            .create();
+        dlg.show();
+        act.getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+
+        tr[0] = new Transformer.Builder(act)
+            .setVideoMimeType(MimeTypes.VIDEO_H264)
+            .setEncoderFactory(new DefaultEncoderFactory.Builder(act)
+                .setRequestedVideoEncoderSettings(new VideoEncoderSettings.Builder().setBitrate(1_200_000).build())
+                .build())
+            .addListener(new Transformer.Listener() {
+                @Override public void onCompleted(Composition c, ExportResult r) {
+                    if (finished[0]) return;
+                    finished[0] = true;
+                    pvUpload(act, out, folder, dlg, sub, cb);
+                }
+                @Override public void onError(Composition c, ExportResult r, ExportException e) {
+                    if (finished[0]) return;
+                    finished[0] = true;
+                    pvFinish(act, dlg, sub, false, cb);
+                }
+            })
+            .build();
+
+        MediaItem mi = new MediaItem.Builder().setUri(in)
+            .setClippingConfiguration(new MediaItem.ClippingConfiguration.Builder()
+                .setStartPositionMs(startMs).setEndPositionMs(endMs).build())
+            .build();
+        EditedMediaItem item = new EditedMediaItem.Builder(mi)
+            .setEffects(dh > cap ? new Effects(ImmutableList.of(), ImmutableList.of(Presentation.createForHeight(cap))) : Effects.EMPTY)
+            .build();
+        tr[0].start(item, out.getAbsolutePath());
+
+        final ProgressHolder ph = new ProgressHolder();
+        hd.post(new Runnable() { public void run() {
+            if (finished[0]) return;
+            if (tr[0].getProgress(ph) == Transformer.PROGRESS_STATE_AVAILABLE)
+                dlg.setMessage("Creating preview... " + ph.progress + "%\nKeep the app open");
+            hd.postDelayed(this, 500);
+        }});
+    }
+
+    private static void pvUpload(final Activity act, final File f, final String folder, final AlertDialog dlg, final File sub, final PvDone cb) {
+        act.runOnUiThread(() -> dlg.setMessage("Uploading preview... 0%\nKeep the app open"));
+        new Thread(() -> {
+            boolean ok = false;
+            try {
+                String token = act.getSharedPreferences("picha_prefs", android.content.Context.MODE_PRIVATE).getString("session_token", null);
+                long size = f.length();
+                if (token == null || size <= 0 || size > 100L * 1024 * 1024) throw new Exception("bad state");
+                org.json.JSONObject body = new org.json.JSONObject()
+                    .put("kind", "preview").put("fileName", "preview.mp4").put("size", size).put("folder", folder);
+                java.net.HttpURLConnection c = (java.net.HttpURLConnection) new java.net.URL(PV_WORKER + "/studio/upload/init").openConnection();
+                c.setRequestMethod("POST");
+                c.setDoOutput(true);
+                c.setConnectTimeout(20000);
+                c.setReadTimeout(30000);
+                c.setRequestProperty("Content-Type", "application/json");
+                c.setRequestProperty("X-Session-Token", token);
+                c.getOutputStream().write(body.toString().getBytes("UTF-8"));
+                String txt = pvRead(c.getResponseCode() < 400 ? c.getInputStream() : c.getErrorStream());
+                org.json.JSONObject j = new org.json.JSONObject(txt);
+                String uploadUrl = j.optString("uploadUrl", "");
+                if (!j.optBoolean("ok") || uploadUrl.isEmpty()) throw new Exception("init failed");
+                for (int attempt = 0; attempt < 3 && !ok; attempt++) {
+                    try {
+                        java.net.HttpURLConnection p = (java.net.HttpURLConnection) new java.net.URL(uploadUrl).openConnection();
+                        p.setRequestMethod("PUT");
+                        p.setDoOutput(true);
+                        p.setConnectTimeout(20000);
+                        p.setReadTimeout(60000);
+                        p.setRequestProperty("Content-Type", "video/mp4");
+                        p.setFixedLengthStreamingMode(size);
+                        try (java.io.InputStream is = new java.io.FileInputStream(f); java.io.OutputStream os = p.getOutputStream()) {
+                            byte[] buf = new byte[1 << 16];
+                            int n;
+                            long sent = 0;
+                            int last = -1;
+                            while ((n = is.read(buf)) > 0) {
+                                os.write(buf, 0, n);
+                                sent += n;
+                                final int pct = (int) (sent * 100 / size);
+                                if (pct != last && pct % 5 == 0) {
+                                    last = pct;
+                                    act.runOnUiThread(() -> dlg.setMessage("Uploading preview... " + pct + "%\nKeep the app open"));
+                                }
+                            }
+                        }
+                        int code = p.getResponseCode();
+                        ok = code >= 200 && code < 300;
+                        p.disconnect();
+                    } catch (Exception e) { ok = false; }
+                }
+            } catch (Exception e) { ok = false; }
+            final boolean good = ok;
+            act.runOnUiThread(() -> pvFinish(act, dlg, sub, good, cb));
+        }).start();
     }
 }

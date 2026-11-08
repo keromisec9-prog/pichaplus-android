@@ -36,6 +36,7 @@ import com.google.android.gms.cast.framework.CastContext;
 public class MainActivity extends AppCompatActivity {
     private ValueCallback<Uri[]> pichaFileCallback;
     static volatile String ppPickedName = "";
+    static volatile String ppPickedFolder = "";
     static boolean ppAskedVideoPerm = false;
     private Intent ppPendingIntent;
     private final ActivityResultLauncher<String> ppVideoPerm = registerForActivityResult(
@@ -65,7 +66,7 @@ public class MainActivity extends AppCompatActivity {
                         android.widget.Toast.makeText(MainActivity.this, why, android.widget.Toast.LENGTH_LONG).show();
                         cbk.onReceiveValue(null);
                     } else {
-                        VideoCompressor.processAndKeep(MainActivity.this, r[0], u -> cbk.onReceiveValue(u == null ? null : new Uri[]{u}));
+                        VideoCompressor.processWithPreview(MainActivity.this, r[0], u -> cbk.onReceiveValue(u == null ? null : new Uri[]{u}));
                     }
                 } else {
                     cbk.onReceiveValue(r);
@@ -397,6 +398,7 @@ public class MainActivity extends AppCompatActivity {
             @android.webkit.JavascriptInterface public void finishUpload(String key, String uploadId) { UploadStore.finishUpload(MainActivity.this, key, uploadId); }
             @android.webkit.JavascriptInterface public void cancelUpload(String key, String uploadId) { UploadStore.cancelUpload(MainActivity.this, key, uploadId); }
             @android.webkit.JavascriptInterface public String listUploads() { return UploadStore.list(MainActivity.this); }
+            @android.webkit.JavascriptInterface public String getPickedFolder() { String f = ppPickedFolder; return f == null ? "" : f; }
             @android.webkit.JavascriptInterface public String getPickedName() { String n = ppPickedName; ppPickedName = ""; return n == null ? "" : n; }
             @android.webkit.JavascriptInterface public String getUploadNet() { return UploadStore.getNet(MainActivity.this); }
             @android.webkit.JavascriptInterface public void setUploadNet(String v) { UploadStore.setNet(MainActivity.this, v); }
