@@ -511,9 +511,9 @@ function uploadsPanel(){
   var back=window.UP_DIRECT?'history.back()':'manageMenu()';
   var h='<i hidden data-full></i><i hidden data-ups></i>'
     +'<div class="sh"><div class="shl" style="flex:1"><button class="ibtn" onclick="'+back+'">'+svg('back')+'</button>'
-    +'<div style="flex:1;min-width:0"><div class="sht">Upload history</div>'
+    +'<div style="flex:1;min-width:0"><div class="sht" style="padding-left:.65rem">Upload history</div>'
     +'<div class="upsh"><span class="msr">search</span><input type="search" placeholder="Search uploads\u2026" oninput="upFilter(this.value)"></div></div></div>'
-    +'<button class="xbtn" onclick="closeSheet()">'+svg('close')+'</button></div>';
+    +'</div>';
   h+='<div class="upmid"><div id="uplist">'+upRows()+'</div>';
   if(d.queued) h+='<div class="empty" style="margin:1rem">'+tp(d.queued,'cancelled upload')+' will be cleared from the server when you are online.</div>';
   h+='<div id="upmsg" class="empty" style="margin:.5rem 1rem"></div></div>';
@@ -540,7 +540,7 @@ function upCancelAsk(i){
 function upCancelDo(i){ var u=UP[i]; if(u){ try { window.PichaTemp.cancelUpload(u.key,u.uploadId); } catch(e){} } uploadsPanel(); }
 function cleanAppAsk(fromUps){
   var d=upData(), n=(d.uploads||[]).length, b=tmpBytes(), back=fromUps?'uploadsPanel()':'storagePanel()';
-  openSheet((fromUps?'<i hidden data-full></i>':'')+sheetHead('Clean app storage?',fmt(b)+' can be freed',back)
+  openSheet((fromUps?'<i hidden data-full></i>':'')+sheetHead('Clean app storage?',fmt(b)+' can be freed',back).replace(/<button class="xbtn"[^>]*>[\s\S]*?<\/button>/,'')
     +'<div class="empty" style="margin:1rem;text-align:left;line-height:1.55">\u2022 Saved upload copies and temporary video files are deleted.<br>\u2022 '+(n?tp(n,'pending upload')+' will be cancelled and removed from the server':'Any unfinished uploads on your account are cancelled and removed from the server')+(navigator.onLine?'.':' once you are back online.')+'<br>\u2022 Your downloads, login and settings are not touched.<br>\u2022 Your original videos on the phone are not touched.</div>'
     +mrow('del','Clean now','This cannot be undone','cleanAppDo('+(fromUps?1:0)+')',true)
     +mrow('back','Keep my files','Go back',back));
