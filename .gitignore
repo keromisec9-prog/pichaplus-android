@@ -1,1 +1,4 @@
 picha-plus-worker.js
+
+*.bak*
+*.pre_*
