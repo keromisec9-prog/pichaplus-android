@@ -628,6 +628,55 @@ final class VideoCompressor {
         if (code < 200 || code >= 300) throw new Exception("storage refused the preview (" + code + ")");
     }
 
+    private static void pvCover(Activity act, File pv, String folder, String token) {
+        try {
+            File jpg = new File(pv.getParentFile(), "cover.jpg");
+            MediaMetadataRetriever m = new MediaMetadataRetriever();
+            m.setDataSource(pv.getAbsolutePath());
+            android.graphics.Bitmap bm = m.getFrameAtTime(1000000L, MediaMetadataRetriever.OPTION_CLOSEST_SYNC);
+            if (bm == null) bm = m.getFrameAtTime(0L, MediaMetadataRetriever.OPTION_CLOSEST_SYNC);
+            m.release();
+            if (bm == null) return;
+            float k = Math.min(1f, 640f / Math.max(bm.getWidth(), bm.getHeight()));
+            if (k < 1f) bm = android.graphics.Bitmap.createScaledBitmap(bm, Math.max(1, Math.round(bm.getWidth() * k)), Math.max(1, Math.round(bm.getHeight() * k)), true);
+            try (java.io.FileOutputStream fo = new java.io.FileOutputStream(jpg)) { bm.compress(android.graphics.Bitmap.CompressFormat.JPEG, 82, fo); }
+            long size = jpg.length();
+            if (size <= 0 || size > 4L * 1024 * 1024) return;
+            for (int attempt = 0; attempt < 2; attempt++) {
+                try {
+                    org.json.JSONObject body = new org.json.JSONObject().put("kind", "cover").put("fileName", "cover.jpg").put("size", size).put("folder", folder);
+                    java.net.HttpURLConnection c = (java.net.HttpURLConnection) new java.net.URL(PV_WORKER + "/studio/upload/init").openConnection();
+                    c.setRequestMethod("POST");
+                    c.setDoOutput(true);
+                    c.setConnectTimeout(20000);
+                    c.setReadTimeout(30000);
+                    c.setRequestProperty("Content-Type", "application/json");
+                    c.setRequestProperty("X-Session-Token", token);
+                    c.getOutputStream().write(body.toString().getBytes("UTF-8"));
+                    int ic = c.getResponseCode();
+                    org.json.JSONObject j = new org.json.JSONObject(pvRead(ic < 400 ? c.getInputStream() : c.getErrorStream()));
+                    String uploadUrl = j.optString("uploadUrl", "");
+                    if (!j.optBoolean("ok") || uploadUrl.isEmpty()) continue;
+                    java.net.HttpURLConnection pu = (java.net.HttpURLConnection) new java.net.URL(uploadUrl).openConnection();
+                    pu.setRequestMethod("PUT");
+                    pu.setDoOutput(true);
+                    pu.setConnectTimeout(20000);
+                    pu.setReadTimeout(30000);
+                    pu.setRequestProperty("Content-Type", "image/jpeg");
+                    pu.setFixedLengthStreamingMode(size);
+                    try (java.io.InputStream is = new java.io.FileInputStream(jpg); java.io.OutputStream os = pu.getOutputStream()) {
+                        byte[] buf = new byte[1 << 15];
+                        int n;
+                        while ((n = is.read(buf)) > 0) os.write(buf, 0, n);
+                    }
+                    int code = pu.getResponseCode();
+                    pu.disconnect();
+                    if (code >= 200 && code < 300) return;
+                } catch (Exception e2) {}
+            }
+        } catch (Exception e) {}
+    }
+
     private static void pvUpload(final Activity act, final File f, final String folder, final AlertDialog dlg, final File sub, final PvDone cb) {
         pvMsg(act, dlg, "Uploading preview... 0%\nKeep the app open");
         new Thread(() -> {
@@ -645,6 +694,7 @@ final class VideoCompressor {
                     }
                     try {
                         pvTryUpload(act, f, folder, size, token, dlg);
+                        try { pvCover(act, f, folder, token); } catch (Exception ce) {}
                         ok = true;
                     } catch (Exception e) {
                         pvMsg(act, dlg, "Upload interrupted: " + e.getMessage() + "\nRetrying...");
