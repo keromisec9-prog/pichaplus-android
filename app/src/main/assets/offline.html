@@ -457,6 +457,23 @@ function upDay(ts){
   return diff<=0?'Today':(diff===1?'Yesterday':'Earlier');
 }
 var upN=5;
+var LV={},upT=null;
+function upLive(){ try { var a=JSON.parse(window.PichaTemp.liveUploads()); LV={}; a.forEach(function(x){ LV[x.key+'|'+x.uploadId]=x; }); } catch(e){} }
+function upPoll(){
+  clearInterval(upT);
+  upT=setInterval(function(){
+    if(curPanel!=='ups'){ clearInterval(upT); return; }
+    upLive();
+    var d=upData(); UP=(d.uploads||[]).slice().sort(function(a,b){ return (a.started||a.t||0)-(b.started||b.t||0); });
+    var el=document.getElementById('uplist'); if(el) el.innerHTML=upRows();
+  },1000);
+}
+function upResume(i){
+  var u=UP[i], ok=false;
+  try { if(u && u.key && window.PichaTemp && window.PichaTemp.resumeNative){ window.PichaTemp.resumeNative(u.key,u.uploadId); ok=true; } } catch(e){}
+  if(!ok) return upResumeWeb();
+  upLive(); uploadsPanel();
+}
 function upRows(){
   if(!UP.length) return '<div class="empty" style="margin:1.5rem 1rem">No unfinished uploads.<br>Uploads that pause appear here so you can finish them.</div>';
   var q=upQ.trim().toLowerCase(), groups={Today:[],Yesterday:[],Earlier:[]}, total=0;
@@ -474,17 +491,18 @@ function upRows(){
     if(!part.length) return;
     h+='<div class="uph">'+g+'</div>';
     part.forEach(function(i){
-      var u=UP[i], pct=u.pct||0, st=u.started||u.t||Date.now();
+      var u=UP[i], lv=LV[u.key+'|'+u.uploadId], pct=u.pct||0, st=u.started||u.t||Date.now();
+      if(lv && lv.size){ pct=Math.min(100,Math.floor(lv.sent*100/lv.size)); }
       var days=Math.max(0,Math.ceil((st+30*864e5-Date.now())/864e5));
       var done=Math.round((u.size||0)*pct/100);
       var tm=new Date(st).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
       h+='<div class="upr2">'
-        +'<div class="upth2">\ud83c\udfac<div class="bar"><i style="width:'+pct+'%"></i></div></div>'
-        +'<div class="upm"><div class="uptitle">'+esc(u.name)+'</div>'
-        +'<div class="uppill">'+pauseSvg+'Paused</div>'
+        +'<div class="upth2">'+(u.poster?'<img src="'+esc(u.poster)+'" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover" onerror="this.remove()">':'\ud83c\udfac')+'<div class="bar"><i style="width:'+pct+'%"></i></div></div>'
+        +'<div class="upm"><div class="uptitle">'+esc(u.title||u.name)+'</div>'
+        +'<div class="uppill">'+(lv&&lv.state==='uploading'?'Uploading':lv&&lv.state==='waiting'?'Waiting for connection':lv&&lv.state==='retrying'?'Reconnecting':lv&&lv.state==='signin'?'Sign in again':lv&&lv.state==='error'?'Could not resume':pauseSvg+'Paused')+'</div>'
         +'<div class="upl1">'+pct+'% \u00b7 '+fmt(done)+' of '+fmt(u.size||0)+'</div>'
         +'<div class="upl2">'+g+' '+tm+' \u00b7 '+days+' day'+(days===1?'':'s')+' left</div></div>'
-        +'<button class="upbtn" style="color:#e5b93c" title="Resume" onclick="upResume()">'+playSvg+'</button>'
+        +'<button class="upbtn" style="color:#e5b93c" title="Resume" onclick="upResume('+i+')">'+playSvg+'</button>'
         +'<button class="upbtn" style="color:rgba(255,255,255,.6)" title="More" onclick="upMenu('+i+')">'+dotsSvg+'</button></div>';
     });
   });
@@ -501,12 +519,12 @@ function upFilter(v){ upQ=v; upN=5; upRefresh(); }
 function upMenu(i){
   var u=UP[i]; if(!u) return;
   openSheet('<i hidden data-full></i>'+sheetHead(u.name,(u.pct||0)+'% of '+fmt(u.size||0),'uploadsPanel()')
-    +mrow('sort','Resume upload','Continue where it stopped','upResume()')
+    +mrow('sort','Resume upload','Continue where it stopped','upResume('+i+')')
     +mrow('del','Cancel and delete','Removes the saved copy and the uploaded part','upCancelAsk('+i+')',true));
 }
 function uploadsPanel(){
   clearInterval(actTimer); curPanel='ups'; upQ=''; upN=5;
-  var d=upData(), net='both'; UP=d.uploads||[];
+  var d=upData(), net='both'; UP=(d.uploads||[]).slice().sort(function(a,b){ return (a.started||a.t||0)-(b.started||b.t||0); }); upLive(); upPoll();
   try { net=window.PichaTemp.getUploadNet()||'both'; } catch(e){}
   var back=window.UP_DIRECT?'history.back()':'manageMenu()';
   var h='<i hidden data-full></i><i hidden data-ups></i>'
@@ -524,7 +542,7 @@ function uploadsPanel(){
     +'</div>'+upStorageCard()+'</div>';
   openSheet(h);
 }
-function upResume(){
+function upResumeWeb(){
   if(!navigator.onLine){ var m=document.getElementById('upmsg'); if(m) m.textContent='You are offline. Connect to the internet to resume.'; return; }
   location.href='https://keromisec9-prog.github.io/picha-plus/studio.html';
 }

@@ -440,10 +440,10 @@ final class VideoCompressor {
         MainActivity.ppPickedFolder = "";
         if (savedCopy(act, src) != null) { processAndKeep(act, src, done); return; }
         final String folder = java.util.UUID.randomUUID().toString();
-        processAndKeep(act, src, u -> {
-            if (u == null) { done.onDone(null); return; }
-            makePreview(act, u, folder, ok -> {
-                if (!ok) { done.onDone(null); return; }
+        makePreview(act, src, folder, ok -> {
+            if (!ok) { done.onDone(null); return; }
+            processAndKeep(act, src, u -> {
+                if (u == null) { done.onDone(null); return; }
                 MainActivity.ppPickedFolder = folder;
                 done.onDone(u);
             });
@@ -454,7 +454,7 @@ final class VideoCompressor {
         try { dlg.dismiss(); } catch (Exception e) {}
         act.getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         deleteTree(sub);
-        if (!ok) Toast.makeText(act, "Couldn't create the preview. Please pick the video again.", Toast.LENGTH_LONG).show();
+        if (!ok && pvWhy.isEmpty()) pvWhy = "The preview could not be made.";
         cb.on(ok);
     }
 
@@ -468,7 +468,26 @@ final class VideoCompressor {
         return bo.toString("UTF-8");
     }
 
+    private static volatile boolean pvAbort = false;
+    private static volatile String pvWhy = "";
+
     private static void makePreview(final Activity act, final Uri in, final String folder, final PvDone cb) {
+        pvAbort = false;
+        pvWhy = "";
+        makePreviewOnce(act, in, folder, ok -> {
+            if (ok) { cb.on(true); return; }
+            if (pvAbort) { cb.on(false); return; }
+            new AlertDialog.Builder(act)
+                .setTitle("Preview needed")
+                .setMessage("A preview must be created and uploaded before your video can be uploaded.\n\n" + (pvWhy.isEmpty() ? "Something went wrong." : pvWhy))
+                .setCancelable(false)
+                .setPositiveButton("Try again", (d, w) -> makePreview(act, in, folder, cb))
+                .setNegativeButton("Cancel upload", (d, w) -> cb.on(false))
+                .show();
+        });
+    }
+
+    private static void makePreviewOnce(final Activity act, final Uri in, final String folder, final PvDone cb) {
         long w = 0, h = 0, rot = 0, dur = 0;
         try {
             MediaMetadataRetriever m = new MediaMetadataRetriever();
@@ -482,7 +501,7 @@ final class VideoCompressor {
         final long dw = (rot == 90 || rot == 270) ? h : w;
         final long dh = (rot == 90 || rot == 270) ? w : h;
         if (dur <= 0 || dw <= 0 || dh <= 0) {
-            Toast.makeText(act, "Couldn't create the preview. Please pick the video again.", Toast.LENGTH_LONG).show();
+            pvWhy = "This video's length or size could not be read.";
             cb.on(false);
             return;
         }
@@ -494,7 +513,7 @@ final class VideoCompressor {
         File[] old = cache.listFiles();
         if (old != null) for (File f : old) if (f.getName().startsWith("pvclip_")) deleteTree(f);
         if (cache.getUsableSpace() < 80L * 1024 * 1024) {
-            Toast.makeText(act, "Not enough free space to create the preview", Toast.LENGTH_LONG).show();
+            pvWhy = "Not enough free space to create the preview. Free some space and try again.";
             cb.on(false);
             return;
         }
@@ -508,6 +527,7 @@ final class VideoCompressor {
         final AlertDialog dlg = new AlertDialog.Builder(act)
             .setTitle("Creating preview")
             .setMessage("Starting... keep the app open")
+            .setNegativeButton("Cancel", (d, w) -> pvAbort = true)
             .setCancelable(false)
             .create();
         dlg.show();
@@ -527,6 +547,7 @@ final class VideoCompressor {
                 @Override public void onError(Composition c, ExportResult r, ExportException e) {
                     if (finished[0]) return;
                     finished[0] = true;
+                    pvWhy = "Preview error: " + e.getErrorCodeName();
                     pvFinish(act, dlg, sub, false, cb);
                 }
             })
@@ -544,64 +565,93 @@ final class VideoCompressor {
         final ProgressHolder ph = new ProgressHolder();
         hd.post(new Runnable() { public void run() {
             if (finished[0]) return;
+            if (pvAbort) { finished[0] = true; try { tr[0].cancel(); } catch (Exception e) {} pvFinish(act, dlg, sub, false, cb); return; }
             if (tr[0].getProgress(ph) == Transformer.PROGRESS_STATE_AVAILABLE)
                 dlg.setMessage("Creating preview... " + ph.progress + "%\nKeep the app open");
             hd.postDelayed(this, 500);
         }});
     }
 
+    private static boolean pvOnline(Activity act) {
+        try {
+            android.net.ConnectivityManager cm = (android.net.ConnectivityManager) act.getSystemService(android.content.Context.CONNECTIVITY_SERVICE);
+            android.net.NetworkCapabilities nc = cm.getNetworkCapabilities(cm.getActiveNetwork());
+            return nc != null && nc.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_INTERNET) && UploadStore.allowedNow(act);
+        } catch (Exception e) { return false; }
+    }
+
+    private static void pvMsg(final Activity act, final AlertDialog dlg, final String m) {
+        act.runOnUiThread(() -> { try { dlg.setMessage(m); } catch (Exception e) {} });
+    }
+
+    private static void pvTryUpload(Activity act, File f, String folder, long size, String token, AlertDialog dlg) throws Exception {
+        org.json.JSONObject body = new org.json.JSONObject()
+            .put("kind", "preview").put("fileName", "preview.mp4").put("size", size).put("folder", folder);
+        java.net.HttpURLConnection c = (java.net.HttpURLConnection) new java.net.URL(PV_WORKER + "/studio/upload/init").openConnection();
+        c.setRequestMethod("POST");
+        c.setDoOutput(true);
+        c.setConnectTimeout(20000);
+        c.setReadTimeout(30000);
+        c.setRequestProperty("Content-Type", "application/json");
+        c.setRequestProperty("X-Session-Token", token);
+        c.getOutputStream().write(body.toString().getBytes("UTF-8"));
+        int ic = c.getResponseCode();
+        String txt = pvRead(ic < 400 ? c.getInputStream() : c.getErrorStream());
+        org.json.JSONObject j = new org.json.JSONObject(txt);
+        String uploadUrl = j.optString("uploadUrl", "");
+        if (!j.optBoolean("ok") || uploadUrl.isEmpty()) throw new Exception("server refused the preview (" + ic + ")");
+        java.net.HttpURLConnection p = (java.net.HttpURLConnection) new java.net.URL(uploadUrl).openConnection();
+        p.setRequestMethod("PUT");
+        p.setDoOutput(true);
+        p.setConnectTimeout(20000);
+        p.setReadTimeout(60000);
+        p.setRequestProperty("Content-Type", "video/mp4");
+        p.setFixedLengthStreamingMode(size);
+        try (java.io.InputStream is = new java.io.FileInputStream(f); java.io.OutputStream os = p.getOutputStream()) {
+            byte[] buf = new byte[1 << 16];
+            int n;
+            long sent = 0;
+            int last = -1;
+            while ((n = is.read(buf)) > 0) {
+                if (pvAbort) throw new Exception("cancelled");
+                os.write(buf, 0, n);
+                sent += n;
+                int pct = (int) (sent * 100 / size);
+                if (pct != last && pct % 5 == 0) {
+                    last = pct;
+                    pvMsg(act, dlg, "Uploading preview... " + pct + "%\nKeep the app open");
+                }
+            }
+        }
+        int code = p.getResponseCode();
+        p.disconnect();
+        if (code < 200 || code >= 300) throw new Exception("storage refused the preview (" + code + ")");
+    }
+
     private static void pvUpload(final Activity act, final File f, final String folder, final AlertDialog dlg, final File sub, final PvDone cb) {
-        act.runOnUiThread(() -> dlg.setMessage("Uploading preview... 0%\nKeep the app open"));
+        pvMsg(act, dlg, "Uploading preview... 0%\nKeep the app open");
         new Thread(() -> {
             boolean ok = false;
-            try {
-                String token = act.getSharedPreferences("picha_prefs", android.content.Context.MODE_PRIVATE).getString("session_token", null);
-                long size = f.length();
-                if (token == null || size <= 0 || size > 100L * 1024 * 1024) throw new Exception("bad state");
-                org.json.JSONObject body = new org.json.JSONObject()
-                    .put("kind", "preview").put("fileName", "preview.mp4").put("size", size).put("folder", folder);
-                java.net.HttpURLConnection c = (java.net.HttpURLConnection) new java.net.URL(PV_WORKER + "/studio/upload/init").openConnection();
-                c.setRequestMethod("POST");
-                c.setDoOutput(true);
-                c.setConnectTimeout(20000);
-                c.setReadTimeout(30000);
-                c.setRequestProperty("Content-Type", "application/json");
-                c.setRequestProperty("X-Session-Token", token);
-                c.getOutputStream().write(body.toString().getBytes("UTF-8"));
-                String txt = pvRead(c.getResponseCode() < 400 ? c.getInputStream() : c.getErrorStream());
-                org.json.JSONObject j = new org.json.JSONObject(txt);
-                String uploadUrl = j.optString("uploadUrl", "");
-                if (!j.optBoolean("ok") || uploadUrl.isEmpty()) throw new Exception("init failed");
-                for (int attempt = 0; attempt < 3 && !ok; attempt++) {
+            String token = act.getSharedPreferences("picha_prefs", android.content.Context.MODE_PRIVATE).getString("session_token", null);
+            long size = f.length();
+            if (token == null || size <= 0 || size > 100L * 1024 * 1024) {
+                pvWhy = token == null ? "You are signed out. Please sign in again." : "The preview file is not valid.";
+            } else {
+                while (!ok && !pvAbort) {
+                    if (!pvOnline(act)) {
+                        pvMsg(act, dlg, "Preview saved on your phone.\nWaiting for internet to upload it...\nKeep the app open");
+                        try { Thread.sleep(3000); } catch (Exception e) {}
+                        continue;
+                    }
                     try {
-                        java.net.HttpURLConnection p = (java.net.HttpURLConnection) new java.net.URL(uploadUrl).openConnection();
-                        p.setRequestMethod("PUT");
-                        p.setDoOutput(true);
-                        p.setConnectTimeout(20000);
-                        p.setReadTimeout(60000);
-                        p.setRequestProperty("Content-Type", "video/mp4");
-                        p.setFixedLengthStreamingMode(size);
-                        try (java.io.InputStream is = new java.io.FileInputStream(f); java.io.OutputStream os = p.getOutputStream()) {
-                            byte[] buf = new byte[1 << 16];
-                            int n;
-                            long sent = 0;
-                            int last = -1;
-                            while ((n = is.read(buf)) > 0) {
-                                os.write(buf, 0, n);
-                                sent += n;
-                                final int pct = (int) (sent * 100 / size);
-                                if (pct != last && pct % 5 == 0) {
-                                    last = pct;
-                                    act.runOnUiThread(() -> dlg.setMessage("Uploading preview... " + pct + "%\nKeep the app open"));
-                                }
-                            }
-                        }
-                        int code = p.getResponseCode();
-                        ok = code >= 200 && code < 300;
-                        p.disconnect();
-                    } catch (Exception e) { ok = false; }
+                        pvTryUpload(act, f, folder, size, token, dlg);
+                        ok = true;
+                    } catch (Exception e) {
+                        pvMsg(act, dlg, "Upload interrupted: " + e.getMessage() + "\nRetrying...");
+                        try { Thread.sleep(3000); } catch (Exception e2) {}
+                    }
                 }
-            } catch (Exception e) { ok = false; }
+            }
             final boolean good = ok;
             act.runOnUiThread(() -> pvFinish(act, dlg, sub, good, cb));
         }).start();

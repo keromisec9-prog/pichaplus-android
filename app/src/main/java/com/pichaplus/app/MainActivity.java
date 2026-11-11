@@ -403,6 +403,9 @@ public class MainActivity extends AppCompatActivity {
             @android.webkit.JavascriptInterface public String getUploadNet() { return UploadStore.getNet(MainActivity.this); }
             @android.webkit.JavascriptInterface public void setUploadNet(String v) { UploadStore.setNet(MainActivity.this, v); }
             @android.webkit.JavascriptInterface public boolean uploadAllowedNow() { return UploadStore.allowedNow(MainActivity.this); }
+            @android.webkit.JavascriptInterface public void resumeNative(String key, String uid) { UploadService.begin(MainActivity.this, key, uid); }
+            @android.webkit.JavascriptInterface public String liveUploads() { return UploadService.liveJson(); }
+            @android.webkit.JavascriptInterface public boolean hasCopy(String name, long size) { return VideoCompressor.findCopy(MainActivity.this, name, size) != null; }
         }, "PichaTemp");
         new Thread(() -> UploadStore.sweepOrphans(MainActivity.this)).start();
         UploadStore.flush(this);
