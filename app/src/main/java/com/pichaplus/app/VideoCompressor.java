@@ -527,7 +527,7 @@ final class VideoCompressor {
         final AlertDialog dlg = new AlertDialog.Builder(act)
             .setTitle("Creating preview")
             .setMessage("Starting... keep the app open")
-            .setNegativeButton("Cancel", (d, w) -> pvAbort = true)
+            .setNegativeButton("Cancel", (dlgI, btnI) -> pvAbort = true)
             .setCancelable(false)
             .create();
         dlg.show();
