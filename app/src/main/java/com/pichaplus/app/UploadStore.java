@@ -73,6 +73,7 @@ final class UploadStore {
                 long started = n.optLong("t", System.currentTimeMillis());
                 JSONObject old = take(o, key, uid);
                 if (old != null) started = old.optLong("started", started);
+                if (old != null && n.optJSONObject("submit") == null && old.optJSONObject("submit") != null) n.put("submit", old.optJSONObject("submit"));
                 n.put("started", started);
                 n.put("t", System.currentTimeMillis());
                 o.getJSONArray("uploads").put(n);

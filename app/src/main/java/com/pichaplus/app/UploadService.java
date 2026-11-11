@@ -257,9 +257,9 @@ public class UploadService extends Service {
         }
         st.sent = size;
         st.state = "done";
-        UploadStore.finishUpload(c, key, uid);
+        if (sub != null && sub.optJSONObject("body") != null) { UploadStore.finishUpload(c, key, uid); } else { try { if (cur != null) { cur.put("done", true); cur.put("pct", 100); UploadStore.saveUpload(c, cur.toString()); } } catch (Exception e) {} }
         NotificationManager nm = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
         Notification.Builder b = Build.VERSION.SDK_INT >= 26 ? new Notification.Builder(this, CH) : new Notification.Builder(this);
-        nm.notify(NID + 1, b.setSmallIcon(android.R.drawable.stat_sys_upload_done).setContentTitle("Upload complete").setContentText(st.title.isEmpty() ? name : st.title).build());
+        nm.notify(NID + 1, b.setSmallIcon(android.R.drawable.stat_sys_upload_done).setContentTitle(sub != null && sub.optJSONObject("body") != null ? "Upload complete" : "Uploaded, details needed").setContentText(st.title.isEmpty() ? name : st.title).build());
     }
 }
