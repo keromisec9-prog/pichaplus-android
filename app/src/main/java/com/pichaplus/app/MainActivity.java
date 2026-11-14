@@ -367,6 +367,8 @@ public class MainActivity extends AppCompatActivity {
         }
 
         webView.addJavascriptInterface(new PichaJSBridge(), "PichaApp");
+        ppShorts = new ShortsController(this, webView);
+        webView.addJavascriptInterface(ppShorts, "PichaShorts");
         CastHelper dlnaCast = new CastHelper(this, webView);
         webView.addJavascriptInterface(dlnaCast, "PichaChromecast");
         if (castButton != null) dlnaCast.attach(castButton);
@@ -661,6 +663,7 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onPause() {
         super.onPause();
+        if (ppShorts != null) ppShorts.hostPause();
         if (webView != null) {
             webView.evaluateJavascript("try{if(typeof flushProgress==='function')flushProgress();}catch(e){}", null);
         }
@@ -669,7 +672,16 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
+        if (ppShorts != null) ppShorts.hostResume();
         ppApplyAutofill(getSharedPreferences("pp_prefs", MODE_PRIVATE).getBoolean("autofill", true));
+    }
+
+    private ShortsController ppShorts;
+
+    @Override
+    protected void onDestroy() {
+        if (ppShorts != null) ppShorts.release();
+        super.onDestroy();
     }
 
     private void hideSystemUI() {
@@ -692,6 +704,7 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     public void onBackPressed() {
+        if (ppShorts != null && ppShorts.handleBack()) return;
         if (customView != null) {
             webView.getWebChromeClient().onHideCustomView();
         } else if (webView.getUrl() != null && webView.getUrl().startsWith(OFFLINE_URL)) {
