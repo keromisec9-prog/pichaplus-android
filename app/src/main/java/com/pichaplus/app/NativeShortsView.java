@@ -162,6 +162,8 @@ public class NativeShortsView extends FrameLayout {
         urlById.put(id, url);
         dbg("url #" + idx + " +" + (SystemClock.elapsedRealtime() - tOpen) + "ms");
         for (Item it : items) if (it.id.equals(id)) it.url = url;
+        ShortsLog.d(-1, "url arrived for " + id + " -> " + "trimAndEnsure()");
+        main.post(new Runnable() { @Override public void run() { trimAndEnsure(); } });
         trimAndEnsure();
         updateSpinner(cur);
     }
@@ -288,7 +290,7 @@ public class NativeShortsView extends FrameLayout {
     private void ensure(int i) {
         if (i < 0 || i >= items.size()) return;
         Item it = items.get(i);
-        if (it.url == null) return;
+        if (it.url == null) { ShortsLog.d(-1, "ensure(" + i + ") NO URL yet cur=" + cur); return; }
         SP sp = players.get(i);
         if (sp != null) return;
         sp = new SP(i, it.id, it.url);
@@ -421,8 +423,8 @@ public class NativeShortsView extends FrameLayout {
             p.addListener(this);
             p.addListener(new androidx.media3.common.Player.Listener() {
                 @Override public void onPlaybackStateChanged(int st) {
-                    String[] nm = {"IDLE", "BUFFERING", "READY", "ENDED"};
-                    ShortsLog.d(SP.this.idx, "state " + (st >= 0 && st < 4 ? nm[st] : "" + st) + " buf=" + p.getBufferedPosition() + " pos=" + p.getCurrentPosition());
+                    String[] nm = {"?", "IDLE", "BUFFERING", "READY", "ENDED"};
+                    ShortsLog.d(SP.this.idx, "state " + (st >= 0 && st < 5 ? nm[st] : "" + st) + " buf=" + p.getBufferedPosition() + " pos=" + p.getCurrentPosition());
                 }
                 @Override public void onIsLoadingChanged(boolean l) { ShortsLog.d(SP.this.idx, "loading=" + l + " buf=" + p.getBufferedPosition()); }
                 @Override public void onPlayWhenReadyChanged(boolean w, int r) { ShortsLog.d(SP.this.idx, "playWhenReady=" + w + " reason=" + r); }
@@ -438,7 +440,7 @@ public class NativeShortsView extends FrameLayout {
                     ShortsLog.d(SP.this.idx, "load done " + li.bytesLoaded + "B in " + li.loadDurationMs + "ms");
                 }
                 @Override public void onLoadCanceled(androidx.media3.exoplayer.analytics.AnalyticsListener.EventTime t, androidx.media3.exoplayer.source.LoadEventInfo li, androidx.media3.exoplayer.source.MediaLoadData md) {
-                    ShortsLog.d(SP.this.idx, "load Candroidx.media3.exoplayer.analytics.AnalyticsListenerCELED after " + li.bytesLoaded + "B");
+                    ShortsLog.d(SP.this.idx, "load CANCELED after " + li.bytesLoaded + "B");
                 }
                 @Override public void onBandwidthEstimate(androidx.media3.exoplayer.analytics.AnalyticsListener.EventTime t, int ms, long bytes, long bps) {
                     ShortsLog.d(SP.this.idx, "bw est " + (bps / 1000) + "kbps");
