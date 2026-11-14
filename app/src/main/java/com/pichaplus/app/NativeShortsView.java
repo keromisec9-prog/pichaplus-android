@@ -352,7 +352,9 @@ public class NativeShortsView extends FrameLayout {
 
     private String snap() {
         StringBuilder b = new StringBuilder("SNAP cur=" + cur + " shown=" + shown + " n=" + players.size());
-        for (SP w : players) {
+        for (int pi = cur - 1; pi <= cur + 3; pi++) {
+            SP w = null;
+            try { w = players.get(pi); } catch (Throwable t) { }
             if (w == null) continue;
             b.append(" | #").append(w.idx).append(" prep=").append(w.prepared).append(" dead=").append(w.dead);
             try { b.append(" st=").append(w.p.getPlaybackState()).append(" buf=").append(w.p.getBufferedPosition() / 1000).append("s pwr=").append(w.p.getPlayWhenReady()); } catch (Throwable t) { }
