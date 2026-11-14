@@ -296,6 +296,7 @@ public class NativeShortsView extends FrameLayout {
         if (it.url == null) { ShortsLog.d(-1, "ensure(" + i + ") NO URL yet cur=" + cur); return; }
         SP sp = players.get(i);
         if (sp != null) return;
+        ShortsLog.d(i, "create id=" + it.id + " url=" + it.url);
         sp = new SP(i, it.id, it.url);
         players.put(i, sp);
         attach(i);
