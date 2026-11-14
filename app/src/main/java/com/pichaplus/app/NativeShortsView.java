@@ -344,12 +344,24 @@ public class NativeShortsView extends FrameLayout {
         long limit = st == Player.STATE_IDLE ? 1500L : 7000L;
         if (now - w.tStall < limit) return;
         w.tStall = now;
+        ShortsLog.d(w.idx, "WATCHDOG retry st" + st);
         dbg("#" + w.idx + " retry st" + st);
         w.p.stop();
         w.p.prepare();
     }
 
+    private String snap() {
+        StringBuilder b = new StringBuilder("SNAP cur=" + cur + " shown=" + shown + " n=" + players.size());
+        for (SP w : players) {
+            if (w == null) continue;
+            b.append(" | #").append(w.idx).append(" prep=").append(w.prepared).append(" dead=").append(w.dead);
+            try { b.append(" st=").append(w.p.getPlaybackState()).append(" buf=").append(w.p.getBufferedPosition() / 1000).append("s pwr=").append(w.p.getPlayWhenReady()); } catch (Throwable t) { }
+        }
+        return b.toString();
+    }
+
     private void stagger() {
+        ShortsLog.d(-1, "stagger()");
         if (!shown) return;
         SP c = players.get(cur);
         if (c == null || c.dead || !c.prepared) return;
@@ -381,6 +393,8 @@ public class NativeShortsView extends FrameLayout {
                 }
             }
             stagger();
+            ShortsLog.install(NativeShortsView.this);
+            if (ShortsLog.due()) ShortsLog.snap(snap());
             if (shown) { watch(players.get(cur)); watch(players.get(cur + 1)); }
             main.postDelayed(this, 200);
         }
@@ -403,6 +417,31 @@ public class NativeShortsView extends FrameLayout {
             DefaultLoadControl lc = new DefaultLoadControl.Builder().setBufferDurationsMs(2000, 8000, 300, 800).build();
             p = new ExoPlayer.Builder(getContext()).setMediaSourceFactory(new androidx.media3.exoplayer.source.DefaultMediaSourceFactory(NetFactory.get(getContext().getApplicationContext()))).setLoadControl(lc).build();
             p.addListener(this);
+            p.addListener(new androidx.media3.common.Player.Listener() {
+                @Override public void onPlaybackStateChanged(int st) {
+                    String[] nm = {"IDLE", "BUFFERING", "READY", "ENDED"};
+                    ShortsLog.d(SP.this.idx, "state " + (st >= 0 && st < 4 ? nm[st] : "" + st) + " buf=" + p.getBufferedPosition() + " pos=" + p.getCurrentPosition());
+                }
+                @Override public void onIsLoadingChanged(boolean l) { ShortsLog.d(SP.this.idx, "loading=" + l + " buf=" + p.getBufferedPosition()); }
+                @Override public void onPlayWhenReadyChanged(boolean w, int r) { ShortsLog.d(SP.this.idx, "playWhenReady=" + w + " reason=" + r); }
+                @Override public void onRenderedFirstFrame() { ShortsLog.d(SP.this.idx, "FIRST FRAME"); }
+                @Override public void onPlayerError(PlaybackException e) {
+            ShortsLog.d(idx, "old-onPlayerError -> retry in 1500ms"); ShortsLog.d(SP.this.idx, "ERROR " + e.getErrorCodeName() + " cause=" + e.getCause()); }
+            });
+            p.addAnalyticsListener(new androidx.media3.exoplayer.analytics.AnalyticsListener() {
+                @Override public void onLoadStarted(androidx.media3.exoplayer.analytics.AnalyticsListener.EventTime t, androidx.media3.exoplayer.source.LoadEventInfo li, androidx.media3.exoplayer.source.MediaLoadData md) {
+                    ShortsLog.d(SP.this.idx, "load start");
+                }
+                @Override public void onLoadCompleted(androidx.media3.exoplayer.analytics.AnalyticsListener.EventTime t, androidx.media3.exoplayer.source.LoadEventInfo li, androidx.media3.exoplayer.source.MediaLoadData md) {
+                    ShortsLog.d(SP.this.idx, "load done " + li.bytesLoaded + "B in " + li.loadDurationMs + "ms");
+                }
+                @Override public void onLoadCanceled(androidx.media3.exoplayer.analytics.AnalyticsListener.EventTime t, androidx.media3.exoplayer.source.LoadEventInfo li, androidx.media3.exoplayer.source.MediaLoadData md) {
+                    ShortsLog.d(SP.this.idx, "load Candroidx.media3.exoplayer.analytics.AnalyticsListenerCELED after " + li.bytesLoaded + "B");
+                }
+                @Override public void onBandwidthEstimate(androidx.media3.exoplayer.analytics.AnalyticsListener.EventTime t, int ms, long bytes, long bps) {
+                    ShortsLog.d(SP.this.idx, "bw est " + (bps / 1000) + "kbps");
+                }
+            });
             p.addAnalyticsListener(new androidx.media3.exoplayer.analytics.AnalyticsListener() {
                 @Override public void onPlayerError(androidx.media3.exoplayer.analytics.AnalyticsListener.EventTime t, PlaybackException e) {
                     dbg("#" + SP.this.idx + " err " + e.getErrorCodeName());
@@ -419,6 +458,7 @@ public class NativeShortsView extends FrameLayout {
         }
 
         void startPrepare() {
+            ShortsLog.d(idx, "startPrepare");
             if (prepared || dead) return;
             prepared = true;
             tPrep = SystemClock.elapsedRealtime();
@@ -470,14 +510,15 @@ public class NativeShortsView extends FrameLayout {
         }
 
         @Override public void onPlayerError(PlaybackException e) {
+            ShortsLog.d(idx, "old-onPlayerError -> retry in 1500ms");
             main.postDelayed(new Runnable() {
                 @Override public void run() { if (!dead) { try { prepared = true; p.prepare(); } catch (Throwable t) { } } }
             }, 1500);
         }
 
-        void play() { want = true; if (startApplied && shown && !hostPaused) p.setPlayWhenReady(true); }
-        void pause() { want = false; p.setPlayWhenReady(false); }
-        void release() { dead = true; try { p.removeListener(this); p.release(); } catch (Throwable t) { } }
+        void play() { ShortsLog.d(idx, "play() startApplied=" + startApplied + " shown=" + shown + " hostPaused=" + hostPaused); want = true; if (startApplied && shown && !hostPaused) p.setPlayWhenReady(true); }
+        void pause() { ShortsLog.d(idx, "pause()"); want = false; p.setPlayWhenReady(false); }
+        void release() { ShortsLog.d(idx, "release()"); dead = true; try { p.removeListener(this); p.release(); } catch (Throwable t) { } }
     }
 
     // ---------------- pager plumbing ----------------
