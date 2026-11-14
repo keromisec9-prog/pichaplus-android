@@ -9,6 +9,7 @@ import android.graphics.Path;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.os.Handler;
+import android.os.SystemClock;
 import android.os.Looper;
 import android.text.TextUtils;
 import android.util.SparseArray;
@@ -27,6 +28,7 @@ import androidx.media3.common.C;
 import androidx.media3.common.MediaItem;
 import androidx.media3.common.PlaybackException;
 import androidx.media3.common.Player;
+import androidx.media3.common.Timeline;
 import androidx.media3.common.VideoSize;
 import androidx.media3.exoplayer.DefaultLoadControl;
 import androidx.media3.exoplayer.ExoPlayer;
@@ -67,6 +69,14 @@ public class NativeShortsView extends FrameLayout {
     private final SparseArray<SP> players = new SparseArray<>();
     private final SparseArray<Slide> slides = new SparseArray<>();
     private ViewPager2 pager;
+    private TextView dbgTv;
+    private final ArrayList<String> dbgLines = new ArrayList<>();
+    private long tOpen;
+    void dbg(String s) {
+        dbgLines.add(s);
+        while (dbgLines.size() > 6) dbgLines.remove(0);
+        if (dbgTv != null) dbgTv.setText(TextUtils.join("\n", dbgLines));
+    }
     private int cur = 0;
     private long clipMs = 30000L;
     private boolean auto = true, full = false, overlay = false, shown = false, hostPaused = false;
@@ -89,6 +99,15 @@ public class NativeShortsView extends FrameLayout {
             @Override public void onPageSelected(int pos) { activate(pos); }
         });
         addView(pager, new LayoutParams(-1, -1));
+        dbgTv = new TextView(c);
+        dbgTv.setTextColor(0xFF00FF88);
+        dbgTv.setTextSize(10);
+        dbgTv.setBackgroundColor(0x99000000);
+        dbgTv.setPadding(dp(c, 6), dp(c, 3), dp(c, 6), dp(c, 3));
+        LayoutParams dl = new LayoutParams(-2, -2, Gravity.TOP | Gravity.END);
+        dl.topMargin = dp(c, 70);
+        dl.rightMargin = dp(c, 8);
+        addView(dbgTv, dl);
     }
 
     // ---------------- public API (UI thread) ----------------
@@ -98,6 +117,8 @@ public class NativeShortsView extends FrameLayout {
         auto = cfg.optBoolean("auto", true);
         full = false;
         clipMs = Math.max(5, cfg.optInt("clip", 30)) * 1000L;
+        tOpen = SystemClock.elapsedRealtime();
+        dbgLines.clear();
         setItems(cfg.optJSONArray("items"));
         cur = 0;
         pager.setCurrentItem(0, false);
@@ -135,6 +156,7 @@ public class NativeShortsView extends FrameLayout {
 
     void setUrl(int idx, String id, String url) {
         urlById.put(id, url);
+        dbg("url #" + idx + " +" + (SystemClock.elapsedRealtime() - tOpen) + "ms");
         for (Item it : items) if (it.id.equals(id)) it.url = url;
         trimAndEnsure();
         updateSpinner(cur);
@@ -238,6 +260,7 @@ public class NativeShortsView extends FrameLayout {
         for (int i = 0; i < slides.size(); i++) slides.valueAt(i).pauseCircle.setVisibility(View.GONE);
         SP sp = players.get(pos);
         if (sp != null) {
+            sp.startPrepare();
             if (sp.played && sp.startApplied) sp.p.seekTo(sp.startMs);
             sp.played = true;
             sp.play();
@@ -267,7 +290,7 @@ public class NativeShortsView extends FrameLayout {
         sp = new SP(i, it.id, it.url);
         players.put(i, sp);
         attach(i);
-        if (i == cur) { sp.played = true; sp.play(); }
+        if (i == cur) { sp.startPrepare(); sp.played = true; sp.play(); }
     }
 
     private void attach(int i) {
@@ -304,6 +327,23 @@ public class NativeShortsView extends FrameLayout {
         if (sp != null && sp.startApplied) sp.p.seekTo(sp.startMs + (long) (f * clipMs));
     }
 
+    private void stagger() {
+        if (!shown) return;
+        SP c = players.get(cur);
+        if (c == null || c.dead || !c.prepared) return;
+        long dur = c.p.getDuration();
+        long ahead = c.p.getBufferedPosition() - c.p.getCurrentPosition();
+        boolean cushion = c.p.getPlaybackState() == Player.STATE_READY && c.startApplied
+            && (ahead >= 3000 || (dur != C.TIME_UNSET && c.p.getBufferedPosition() >= dur - 300));
+        if (!cushion) return;
+        SP n = players.get(cur + 1);
+        if (n != null && !n.prepared) { n.startPrepare(); return; }
+        if (n == null || n.p.getPlaybackState() == Player.STATE_READY) {
+            SP pv = players.get(cur - 1);
+            if (pv != null && !pv.prepared) pv.startPrepare();
+        }
+    }
+
     private final Runnable tick = new Runnable() {
         @Override public void run() {
             if (shown) {
@@ -318,6 +358,7 @@ public class NativeShortsView extends FrameLayout {
                     }
                 }
             }
+            stagger();
             main.postDelayed(this, 200);
         }
     };
@@ -327,35 +368,59 @@ public class NativeShortsView extends FrameLayout {
         final int idx;
         final String itemId;
         final ExoPlayer p;
-        boolean startApplied, played, want, dead;
+        boolean startApplied, played, want, dead, prepared;
+        long tPrep, tReady;
         long startMs;
         int vw, vh;
 
         SP(int idx, String itemId, String url) {
             this.idx = idx;
             this.itemId = itemId;
-            DefaultLoadControl lc = new DefaultLoadControl.Builder().setBufferDurationsMs(2500, 12000, 400, 1000).build();
+            DefaultLoadControl lc = new DefaultLoadControl.Builder().setBufferDurationsMs(2000, 8000, 300, 800).build();
             p = new ExoPlayer.Builder(getContext()).setLoadControl(lc).build();
             p.addListener(this);
             p.setMediaItem(MediaItem.fromUri(url));
             p.setPlayWhenReady(false);
+        }
+
+        void startPrepare() {
+            if (prepared || dead) return;
+            prepared = true;
+            tPrep = SystemClock.elapsedRealtime();
             p.prepare();
         }
 
+        private void applyStart() {
+            if (startApplied || dead) return;
+            long dur = p.getDuration();
+            if (dur == C.TIME_UNSET || dur <= 0) return;
+            startApplied = true;
+            Item it = idx < items.size() ? items.get(idx) : null;
+            if (it != null && !it.isShort) {
+                startMs = Math.min((long) (dur * 0.27), Math.max(0L, dur - clipMs));
+            }
+            if (startMs > 0) p.seekTo(startMs);
+        }
+
+        @Override public void onTimelineChanged(Timeline t, int reason) { applyStart(); }
+
         @Override public void onPlaybackStateChanged(int st) {
             if (dead) return;
-            if (st == Player.STATE_READY && !startApplied) {
+            if (st == Player.STATE_READY) {
+                applyStart();
                 startApplied = true;
-                long dur = p.getDuration();
-                Item it = idx < items.size() ? items.get(idx) : null;
-                if (it != null && !it.isShort && dur != C.TIME_UNSET && dur > 0) {
-                    startMs = Math.min((long) (dur * 0.27), Math.max(0L, dur - clipMs));
+                if (tReady == 0 && tPrep != 0) {
+                    tReady = SystemClock.elapsedRealtime();
+                    dbg("#" + idx + (idx == cur ? " cur" : " nbr") + " ready " + (tReady - tPrep) + "ms @" + (startMs / 1000) + "s");
                 }
-                if (startMs > 0) p.seekTo(startMs);
             }
             if (st == Player.STATE_READY && want && shown && !hostPaused) p.setPlayWhenReady(true);
             if (st == Player.STATE_ENDED && idx == cur) { p.seekTo(startMs); p.setPlayWhenReady(true); }
             updateSpinner(idx);
+        }
+
+        @Override public void onRenderedFirstFrame() {
+            if (tReady != 0) dbg("#" + idx + " frame +" + (SystemClock.elapsedRealtime() - tReady) + "ms");
         }
 
         @Override public void onVideoSizeChanged(VideoSize v) {
@@ -370,7 +435,7 @@ public class NativeShortsView extends FrameLayout {
 
         @Override public void onPlayerError(PlaybackException e) {
             main.postDelayed(new Runnable() {
-                @Override public void run() { if (!dead) { try { p.prepare(); } catch (Throwable t) { } } }
+                @Override public void run() { if (!dead) { try { prepared = true; p.prepare(); } catch (Throwable t) { } } }
             }, 1500);
         }
 
