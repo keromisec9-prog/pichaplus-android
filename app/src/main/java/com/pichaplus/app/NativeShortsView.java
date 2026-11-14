@@ -59,6 +59,7 @@ public class NativeShortsView extends FrameLayout {
     static final class Item {
         String id = "", meta = "", title = "", desc = "", cta = "", likeCount = "Like", saveLabel = "Save", saveCount = "";
         boolean isShort, liked, saved;
+        long preStartMs;
         String url;
     }
 
@@ -147,6 +148,7 @@ public class NativeShortsView extends FrameLayout {
                     it.url = urlById.get(id);
                 }
                 it.isShort = o.optInt("s") == 1;
+                it.preStartMs = o.optLong("st") * 1000L;
                 items.add(it);
             }
         }
@@ -369,6 +371,7 @@ public class NativeShortsView extends FrameLayout {
         final String itemId;
         final ExoPlayer p;
         boolean startApplied, played, want, dead, prepared;
+        boolean preSet;
         long tPrep, tReady;
         long startMs;
         int vw, vh;
@@ -379,7 +382,10 @@ public class NativeShortsView extends FrameLayout {
             DefaultLoadControl lc = new DefaultLoadControl.Builder().setBufferDurationsMs(2000, 8000, 300, 800).build();
             p = new ExoPlayer.Builder(getContext()).setLoadControl(lc).build();
             p.addListener(this);
-            p.setMediaItem(MediaItem.fromUri(url));
+            Item it0 = idx < items.size() ? items.get(idx) : null;
+            long pre = (it0 != null && !it0.isShort) ? it0.preStartMs : 0L;
+            if (pre > 0) { startMs = pre; preSet = true; p.setMediaItem(MediaItem.fromUri(url), pre); }
+            else p.setMediaItem(MediaItem.fromUri(url));
             p.setPlayWhenReady(false);
         }
 
@@ -392,6 +398,7 @@ public class NativeShortsView extends FrameLayout {
 
         private void applyStart() {
             if (startApplied || dead) return;
+            if (preSet) { startApplied = true; return; }
             long dur = p.getDuration();
             if (dur == C.TIME_UNSET || dur <= 0) return;
             startApplied = true;
