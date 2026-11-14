@@ -18,7 +18,7 @@ final class NetFactory {
             .setUserAgent(UA).setConnectTimeoutMs(8000).setReadTimeoutMs(8000).setAllowCrossProtocolRedirects(true);
         try {
             CronetEngine engine = new CronetEngine.Builder(c.getApplicationContext())
-                .enableHttp2(true).enableQuic(true).enableBrotli(true).build();
+                .enableHttp2(true).enableQuic(false).enableBrotli(true).build();
             factory = new CronetDataSource.Factory(engine, Executors.newFixedThreadPool(4))
                 .setUserAgent(UA).setConnectionTimeoutMs(8000).setReadTimeoutMs(8000)
                 .setResetTimeoutOnRedirects(true).setFallbackFactory(fallback);

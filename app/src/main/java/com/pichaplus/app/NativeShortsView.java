@@ -75,7 +75,7 @@ public class NativeShortsView extends FrameLayout {
     private long tOpen;
     void dbg(String s) {
         dbgLines.add(s);
-        while (dbgLines.size() > 6) dbgLines.remove(0);
+        while (dbgLines.size() > 9) dbgLines.remove(0);
         if (dbgTv != null) dbgTv.setText(TextUtils.join("\n", dbgLines));
     }
     private int cur = 0;
@@ -331,6 +331,24 @@ public class NativeShortsView extends FrameLayout {
         if (sp != null && sp.startApplied) sp.p.seekTo(sp.startMs + (long) (f * clipMs));
     }
 
+    private void watch(SP w) {
+        if (w == null || w.dead || !w.prepared) return;
+        long now = SystemClock.elapsedRealtime();
+        int st = w.p.getPlaybackState();
+        long buf = w.p.getBufferedPosition();
+        if (st == Player.STATE_READY || st == Player.STATE_ENDED || buf != w.lastBuf || w.tStall == 0) {
+            w.lastBuf = buf;
+            w.tStall = now;
+            return;
+        }
+        long limit = st == Player.STATE_IDLE ? 1500L : 7000L;
+        if (now - w.tStall < limit) return;
+        w.tStall = now;
+        dbg("#" + w.idx + " retry st" + st);
+        w.p.stop();
+        w.p.prepare();
+    }
+
     private void stagger() {
         if (!shown) return;
         SP c = players.get(cur);
@@ -363,6 +381,7 @@ public class NativeShortsView extends FrameLayout {
                 }
             }
             stagger();
+            if (shown) { watch(players.get(cur)); watch(players.get(cur + 1)); }
             main.postDelayed(this, 200);
         }
     };
@@ -374,7 +393,7 @@ public class NativeShortsView extends FrameLayout {
         final ExoPlayer p;
         boolean startApplied, played, want, dead, prepared;
         boolean preSet;
-        long tPrep, tReady;
+        long tPrep, tReady, tStall, lastBuf;
         long startMs;
         int vw, vh;
 
@@ -384,6 +403,14 @@ public class NativeShortsView extends FrameLayout {
             DefaultLoadControl lc = new DefaultLoadControl.Builder().setBufferDurationsMs(2000, 8000, 300, 800).build();
             p = new ExoPlayer.Builder(getContext()).setMediaSourceFactory(new androidx.media3.exoplayer.source.DefaultMediaSourceFactory(NetFactory.get(getContext().getApplicationContext()))).setLoadControl(lc).build();
             p.addListener(this);
+            p.addAnalyticsListener(new androidx.media3.exoplayer.analytics.AnalyticsListener() {
+                @Override public void onPlayerError(androidx.media3.exoplayer.analytics.AnalyticsListener.EventTime t, PlaybackException e) {
+                    dbg("#" + SP.this.idx + " err " + e.getErrorCodeName());
+                }
+                @Override public void onLoadError(androidx.media3.exoplayer.analytics.AnalyticsListener.EventTime t, androidx.media3.exoplayer.source.LoadEventInfo li, androidx.media3.exoplayer.source.MediaLoadData md, java.io.IOException e, boolean canceled) {
+                    dbg("#" + SP.this.idx + " loaderr " + e.getClass().getSimpleName());
+                }
+            });
             Item it0 = idx < items.size() ? items.get(idx) : null;
             long pre = (it0 != null && !it0.isShort) ? it0.preStartMs : 0L;
             if (pre > 0) { startMs = pre; preSet = true; p.setMediaItem(MediaItem.fromUri(url), pre); }
