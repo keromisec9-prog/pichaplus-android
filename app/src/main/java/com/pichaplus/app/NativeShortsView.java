@@ -777,6 +777,11 @@ public class NativeShortsView extends FrameLayout {
             tvDesc.setMaxLines(2);
             tvDesc.setEllipsize(TextUtils.TruncateAt.END);
             info.addView(tvDesc, new LinearLayout.LayoutParams(-2, -2));
+            tvDesc.setOnClickListener(new OnClickListener() {
+                @Override public void onClick(View v) {
+                    tvDesc.setMaxLines(tvDesc.getMaxLines() > 2 ? 2 : Integer.MAX_VALUE);
+                }
+            });
 
             ctaBtn = new LinearLayout(c);
             ctaBtn.setOrientation(LinearLayout.HORIZONTAL);
@@ -815,6 +820,27 @@ public class NativeShortsView extends FrameLayout {
             backBtn.setVisibility(GONE);
             addView(backBtn, bl);
 
+            speedPill = new LinearLayout(c);
+            speedPill.setOrientation(LinearLayout.HORIZONTAL);
+            speedPill.setGravity(Gravity.CENTER_VERTICAL);
+            GradientDrawable sb = new GradientDrawable();
+            sb.setCornerRadius(dp(c, 20));
+            sb.setColor(0xB3000000);
+            speedPill.setBackground(sb);
+            speedPill.setPadding(dp(c, 14), dp(c, 8), dp(c, 14), dp(c, 8));
+            TextView sv = label(c, 14);
+            sv.setText("3x");
+            speedPill.addView(sv, new LinearLayout.LayoutParams(-2, -2));
+            for (int q = 0; q < 2; q++) {
+                LinearLayout.LayoutParams ql = new LinearLayout.LayoutParams(dp(c, 14), dp(c, 14));
+                if (q == 0) ql.leftMargin = dp(c, 6);
+                speedPill.addView(new Ico(c, P_PLAY), ql);
+            }
+            speedPill.setVisibility(GONE);
+            LayoutParams spl = new LayoutParams(-2, -2, Gravity.TOP | Gravity.CENTER_HORIZONTAL);
+            spl.topMargin = dp(c, 72);
+            addView(speedPill, spl);
+
             final GestureDetector g = new GestureDetector(c, new GestureDetector.SimpleOnGestureListener() {
                 @Override public boolean onDown(MotionEvent e) { return true; }
                 @Override public boolean onSingleTapConfirmed(MotionEvent e) { togglePause(idx); return true; }
@@ -823,6 +849,61 @@ public class NativeShortsView extends FrameLayout {
             setOnTouchListener(new OnTouchListener() {
                 @Override public boolean onTouch(View v, MotionEvent e) { g.onTouchEvent(e); return true; }
             });
+        }
+
+        LinearLayout speedPill;
+        boolean holding;
+        float downX, downY;
+        long downT;
+        final int slop = android.view.ViewConfiguration.get(getContext()).getScaledTouchSlop();
+
+        private final Runnable holdRun = new Runnable() {
+            @Override public void run() {
+                holding = true;
+                MotionEvent cx = MotionEvent.obtain(downT, SystemClock.uptimeMillis(), MotionEvent.ACTION_CANCEL, downX, downY, 0);
+                superDispatch(cx);
+                cx.recycle();
+                if (getParent() != null) getParent().requestDisallowInterceptTouchEvent(true);
+                setSpeed(3f);
+            }
+        };
+
+        private boolean superDispatch(MotionEvent e) { return super.dispatchTouchEvent(e); }
+
+        private void setSpeed(float f) {
+            SP sp = players.get(idx);
+            if (sp != null && !sp.dead) {
+                try { sp.p.setPlaybackParameters(new androidx.media3.common.PlaybackParameters(f)); } catch (Throwable t) { }
+            }
+            speedPill.setVisibility(f > 1f ? VISIBLE : GONE);
+            ShortsLog.d(idx, "speed " + f);
+        }
+
+        private boolean onSeekBar(MotionEvent e) {
+            int[] l = new int[2];
+            seek.getLocationOnScreen(l);
+            float pad = dp(getContext(), 14);
+            return e.getRawY() >= l[1] - pad && e.getRawY() <= l[1] + seek.getHeight() + pad;
+        }
+
+        @Override public boolean dispatchTouchEvent(MotionEvent e) {
+            int a = e.getActionMasked();
+            if (a == MotionEvent.ACTION_DOWN) {
+                holding = false;
+                removeCallbacks(holdRun);
+                float x = e.getX(), w = getWidth();
+                if ((x < w * 0.2f || x > w * 0.8f) && !onSeekBar(e)) {
+                    downX = e.getX(); downY = e.getY(); downT = e.getDownTime();
+                    postDelayed(holdRun, 350);
+                }
+            } else if (a == MotionEvent.ACTION_MOVE && !holding) {
+                if (Math.abs(e.getX() - downX) > slop || Math.abs(e.getY() - downY) > slop) removeCallbacks(holdRun);
+            } else if (a == MotionEvent.ACTION_UP || a == MotionEvent.ACTION_CANCEL) {
+                removeCallbacks(holdRun);
+                if (holding) { holding = false; setSpeed(1f); return true; }
+            }
+            if (holding) return true;
+            return super.dispatchTouchEvent(e);
         }
 
         @Override protected void onSizeChanged(int w, int h2, int ow, int oh) {
@@ -838,6 +919,10 @@ public class NativeShortsView extends FrameLayout {
             seek.setProgress(0f);
             box.tv.setAlpha(0f);
             pauseCircle.setVisibility(GONE);
+            tvDesc.setMaxLines(2);
+            holding = false;
+            removeCallbacks(holdRun);
+            speedPill.setVisibility(GONE);
             refresh(it);
             applyFlags();
         }
