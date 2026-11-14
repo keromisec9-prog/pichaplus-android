@@ -332,9 +332,24 @@ public class NativeShortsView extends FrameLayout {
         }
     }
 
+    private int pendIdx = -1;
+    private float pendF;
+    private final Runnable seekRun = new Runnable() {
+        @Override public void run() {
+            SP sp = players.get(pendIdx);
+            if (sp != null && sp.startApplied) {
+                long t = sp.startMs + (long) (pendF * clipMs);
+                ShortsLog.d(pendIdx, "seek -> " + t);
+                sp.p.seekTo(t);
+            }
+        }
+    };
+
     private void seekFrac(int i, float f) {
-        SP sp = players.get(i);
-        if (sp != null && sp.startApplied) sp.p.seekTo(sp.startMs + (long) (f * clipMs));
+        pendIdx = i;
+        pendF = f;
+        main.removeCallbacks(seekRun);
+        main.postDelayed(seekRun, 120);
     }
 
     private void watch(SP w) {
