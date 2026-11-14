@@ -32,6 +32,10 @@ import androidx.media3.common.Timeline;
 import androidx.media3.common.VideoSize;
 import androidx.media3.exoplayer.DefaultLoadControl;
 import androidx.media3.exoplayer.ExoPlayer;
+import androidx.media3.exoplayer.analytics.AnalyticsListener;
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory;
+import androidx.media3.exoplayer.source.LoadEventInfo;
+import androidx.media3.exoplayer.source.MediaLoadData;
 import androidx.recyclerview.widget.RecyclerView;
 import androidx.viewpager2.widget.ViewPager2;
 import org.json.JSONArray;
@@ -72,9 +76,10 @@ public class NativeShortsView extends FrameLayout {
     private TextView dbgTv;
     private final ArrayList<String> dbgLines = new ArrayList<>();
     private long tOpen;
+    private long warmBytes = 4L * 1024 * 1024;
     void dbg(String s) {
         dbgLines.add(s);
-        while (dbgLines.size() > 6) dbgLines.remove(0);
+        while (dbgLines.size() > 9) dbgLines.remove(0);
         if (dbgTv != null) dbgTv.setText(TextUtils.join("\n", dbgLines));
     }
     private int cur = 0;
@@ -117,6 +122,7 @@ public class NativeShortsView extends FrameLayout {
         auto = cfg.optBoolean("auto", true);
         full = false;
         clipMs = Math.max(5, cfg.optInt("clip", 30)) * 1000L;
+        warmBytes = Math.max(512L * 1024, cfg.optLong("warm", 4L * 1024 * 1024));
         tOpen = SystemClock.elapsedRealtime();
         dbgLines.clear();
         setItems(cfg.optJSONArray("items"));
@@ -327,6 +333,17 @@ public class NativeShortsView extends FrameLayout {
         if (sp != null && sp.startApplied) sp.p.seekTo(sp.startMs + (long) (f * clipMs));
     }
 
+    private void warmNext() {
+        if (!shown || PreviewCache.busy()) return;
+        SP c = players.get(cur);
+        if (c == null || c.dead || c.p.getPlaybackState() != Player.STATE_READY) return;
+        if (c.p.getBufferedPosition() - c.p.getCurrentPosition() < 3000) return;
+        for (int i = cur + 2; i <= cur + 4 && i < items.size(); i++) {
+            String u = items.get(i).url;
+            if (u != null && !PreviewCache.isWarm(u)) { PreviewCache.warm(getContext().getApplicationContext(), u, warmBytes); return; }
+        }
+    }
+
     private void stagger() {
         if (!shown) return;
         SP c = players.get(cur);
@@ -359,6 +376,7 @@ public class NativeShortsView extends FrameLayout {
                 }
             }
             stagger();
+            warmNext();
             main.postDelayed(this, 200);
         }
     };
@@ -377,8 +395,13 @@ public class NativeShortsView extends FrameLayout {
             this.idx = idx;
             this.itemId = itemId;
             DefaultLoadControl lc = new DefaultLoadControl.Builder().setBufferDurationsMs(2000, 8000, 300, 800).build();
-            p = new ExoPlayer.Builder(getContext()).setLoadControl(lc).build();
+            p = new ExoPlayer.Builder(getContext()).setMediaSourceFactory(new DefaultMediaSourceFactory(PreviewCache.factory(getContext().getApplicationContext()))).setLoadControl(lc).build();
             p.addListener(this);
+            p.addAnalyticsListener(new AnalyticsListener() {
+                @Override public void onLoadCompleted(AnalyticsListener.EventTime t, LoadEventInfo li, MediaLoadData md) {
+                    if (li.loadDurationMs > 300) dbg("#" + SP.this.idx + " load @" + (li.dataSpec.position >> 10) + "K +" + (li.bytesLoaded >> 10) + "K " + li.loadDurationMs + "ms");
+                }
+            });
             p.setMediaItem(MediaItem.fromUri(url));
             p.setPlayWhenReady(false);
         }
