@@ -120,6 +120,8 @@ public class NativeShortsView extends FrameLayout {
         clipMs = Math.max(5, cfg.optInt("clip", 30)) * 1000L;
         tOpen = SystemClock.elapsedRealtime();
         dbgLines.clear();
+        NetFactory.get(getContext().getApplicationContext());
+        dbg("net: " + NetFactory.kind);
         setItems(cfg.optJSONArray("items"));
         cur = 0;
         pager.setCurrentItem(0, false);
@@ -380,7 +382,7 @@ public class NativeShortsView extends FrameLayout {
             this.idx = idx;
             this.itemId = itemId;
             DefaultLoadControl lc = new DefaultLoadControl.Builder().setBufferDurationsMs(2000, 8000, 300, 800).build();
-            p = new ExoPlayer.Builder(getContext()).setLoadControl(lc).build();
+            p = new ExoPlayer.Builder(getContext()).setMediaSourceFactory(new androidx.media3.exoplayer.source.DefaultMediaSourceFactory(NetFactory.get(getContext().getApplicationContext()))).setLoadControl(lc).build();
             p.addListener(this);
             Item it0 = idx < items.size() ? items.get(idx) : null;
             long pre = (it0 != null && !it0.isShort) ? it0.preStartMs : 0L;
