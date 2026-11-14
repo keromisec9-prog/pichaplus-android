@@ -132,6 +132,7 @@ public class NativeShortsView extends FrameLayout {
     }
 
     void setItems(JSONArray a) {
+        try { StringBuilder sb = new StringBuilder(); for (int q = 0; a != null && q < Math.min(4, a.length()); q++) sb.append(a.optJSONObject(q).optString("id")).append(","); ShortsLog.d(-1, "setItems n=" + (a == null ? 0 : a.length()) + " first=" + sb); } catch (Throwable t) { }
         Map<String, Item> old = new HashMap<>();
         for (Item it : items) old.put(it.id, it);
         items.clear();
@@ -159,6 +160,8 @@ public class NativeShortsView extends FrameLayout {
     }
 
     void setUrl(int idx, String id, String url) {
+        int ii = -1; for (int q = 0; q < items.size(); q++) if (items.get(q).id.equals(id)) { ii = q; break; }
+        ShortsLog.d(-1, "setUrl jsIdx=" + idx + " listIdx=" + ii + " id=" + id);
         urlById.put(id, url);
         dbg("url #" + idx + " +" + (SystemClock.elapsedRealtime() - tOpen) + "ms");
         for (Item it : items) if (it.id.equals(id)) it.url = url;
@@ -343,7 +346,7 @@ public class NativeShortsView extends FrameLayout {
             w.tStall = now;
             return;
         }
-        long limit = st == Player.STATE_IDLE ? 1500L : 7000L;
+        long limit = st == Player.STATE_IDLE ? 1500L : 20000L;
         if (now - w.tStall < limit) return;
         w.tStall = now;
         ShortsLog.d(w.idx, "WATCHDOG retry st" + st);
