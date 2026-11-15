@@ -15,6 +15,11 @@ import android.webkit.CookieManager;
 import android.webkit.DownloadListener;
 import android.webkit.JavascriptInterface;
 import android.webkit.WebChromeClient;
+import android.webkit.ValueCallback;
+import androidx.activity.result.ActivityResult;
+import androidx.activity.result.ActivityResultCallback;
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
 import android.webkit.WebResourceError;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
@@ -29,13 +34,65 @@ import com.google.android.gms.cast.framework.CastButtonFactory;
 import com.google.android.gms.cast.framework.CastContext;
 
 public class MainActivity extends AppCompatActivity {
+    private ValueCallback<Uri[]> pichaFileCallback;
+    static volatile String ppPickedName = "";
+    static volatile String ppPickedFolder = "";
+    static boolean ppAskedVideoPerm = false;
+    private Intent ppPendingIntent;
+    private final ActivityResultLauncher<String> ppVideoPerm = registerForActivityResult(
+        new ActivityResultContracts.RequestPermission(),
+        new ActivityResultCallback<Boolean>() {
+            @Override public void onActivityResult(Boolean ok) {
+                Intent i = ppPendingIntent;
+                ppPendingIntent = null;
+                if (i == null) return;
+                try { pichaFilePicker.launch(i); }
+                catch (Exception e) {
+                    if (pichaFileCallback != null) { pichaFileCallback.onReceiveValue(null); pichaFileCallback = null; }
+                }
+            }
+        });
+    private final ActivityResultLauncher<Intent> pichaFilePicker = registerForActivityResult(
+        new ActivityResultContracts.StartActivityForResult(),
+        new ActivityResultCallback<ActivityResult>() {
+            @Override public void onActivityResult(ActivityResult result) {
+                if (pichaFileCallback == null) return;
+                Uri[] r = WebChromeClient.FileChooserParams.parseResult(result.getResultCode(), result.getData());
+                final ValueCallback<Uri[]> cbk = pichaFileCallback;
+                if (r != null && r.length == 1 && VideoCompressor.isVideo(MainActivity.this, r[0])) {
+                    ppPickedName = VideoCompressor.originalName(MainActivity.this, r[0]);
+                    String why = VideoCompressor.blockReason(MainActivity.this, r[0]);
+                    if (why != null) {
+                        android.widget.Toast.makeText(MainActivity.this, why, android.widget.Toast.LENGTH_LONG).show();
+                        cbk.onReceiveValue(null);
+                    } else {
+                        VideoCompressor.processWithPreview(MainActivity.this, r[0], u -> cbk.onReceiveValue(u == null ? null : new Uri[]{u}));
+                    }
+                } else {
+                    cbk.onReceiveValue(r);
+                }
+                pichaFileCallback = null;
+            }
+        });
     private WebView webView;
     private CastContext castContext;
     private MediaRouteButton castButton;
+    private volatile boolean castForcedHidden = false;
     private FrameLayout fullscreenContainer;
     private android.view.View customView;
     private WebChromeClient.CustomViewCallback customViewCallback;
     private static final String HOME_URL = "https://keromisec9-prog.github.io/picha-plus/";
+
+    private static boolean isPichaMain(String url) {
+        if (url == null) return false;
+        if (url.contains("keromisec9-prog.github.io/picha-plus")) return true;
+        try {
+            String h = android.net.Uri.parse(url).getHost();
+            if (h == null) return false;
+            h = h.toLowerCase();
+            return h.equals("mypicha.uk") || h.equals("www.mypicha.uk");
+        } catch (Exception e) { return false; }
+    }
     private static final String OFFLINE_URL = "file:///android_asset/offline.html";
 
     private boolean isConnected() {
@@ -45,6 +102,151 @@ public class MainActivity extends AppCompatActivity {
     }
 
     public class PichaJSBridge {
+
+        private String _shareCache = null;
+
+        // Apps that accept shared text, priority apps first. Returns JSON:
+        // [{"l":label,"p":package,"c":activityClass,"i":"data:image/png;base64,..."}]
+        @JavascriptInterface
+        public String getShareTargets() {
+            if (_shareCache != null) return _shareCache;
+            try {
+                PackageManager pm = getPackageManager();
+                Intent send = new Intent(Intent.ACTION_SEND);
+                send.setType("text/plain");
+                java.util.List<android.content.pm.ResolveInfo> list = pm.queryIntentActivities(send, 0);
+                final java.util.List<String> pri = java.util.Arrays.asList(
+                    "com.whatsapp", "com.whatsapp.w4b", "org.telegram.messenger",
+                    "com.facebook.lite", "com.facebook.orca", "com.facebook.katana",
+                    "com.snapchat.android", "com.instagram.android", "com.twitter.android",
+                    "com.google.android.apps.messaging", "com.google.android.gm");
+                java.util.Collections.sort(list, (a, b) -> {
+                    int ia = pri.indexOf(a.activityInfo.packageName);
+                    int ib = pri.indexOf(b.activityInfo.packageName);
+                    if (ia < 0) ia = 999;
+                    if (ib < 0) ib = 999;
+                    return ia - ib;
+                });
+                org.json.JSONArray out = new org.json.JSONArray();
+                java.util.HashSet<String> seen = new java.util.HashSet<>();
+                for (android.content.pm.ResolveInfo ri : list) {
+                    String pkg = ri.activityInfo.packageName;
+                    if (pkg.equals(getPackageName()) || !seen.add(pkg)) continue;
+                    android.graphics.drawable.Drawable d = ri.loadIcon(pm);
+                    android.graphics.Bitmap bmp = android.graphics.Bitmap.createBitmap(96, 96, android.graphics.Bitmap.Config.ARGB_8888);
+                    android.graphics.Canvas cv = new android.graphics.Canvas(bmp);
+                    d.setBounds(0, 0, 96, 96);
+                    d.draw(cv);
+                    java.io.ByteArrayOutputStream bos = new java.io.ByteArrayOutputStream();
+                    bmp.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, bos);
+                    org.json.JSONObject o = new org.json.JSONObject();
+                    o.put("l", String.valueOf(ri.loadLabel(pm)));
+                    o.put("p", pkg);
+                    o.put("c", ri.activityInfo.name);
+                    o.put("i", "data:image/png;base64," + android.util.Base64.encodeToString(bos.toByteArray(), android.util.Base64.NO_WRAP));
+                    out.put(o);
+                    if (out.length() >= 12) break;
+                }
+                _shareCache = out.toString();
+            } catch (Exception e) {
+                _shareCache = "[]";
+            }
+            return _shareCache;
+        }
+
+        // Opens Android's own full share sheet (the "More" button).
+        @JavascriptInterface
+        public void shareMore(String text) {
+            runOnUiThread(() -> {
+                try {
+                    Intent i = new Intent(Intent.ACTION_SEND);
+                    i.setType("text/plain");
+                    i.putExtra(Intent.EXTRA_TEXT, text);
+                    startActivity(Intent.createChooser(i, null));
+                } catch (Exception e) { /* no chooser available */ }
+            });
+        }
+
+        // Sends text straight to one specific app (no system chooser in between).
+        @JavascriptInterface
+        public boolean shareTo(String pkg, String cls, String text) {
+            runOnUiThread(() -> {
+                try {
+                    Intent i = new Intent(Intent.ACTION_SEND);
+                    i.setType("text/plain");
+                    i.putExtra(Intent.EXTRA_TEXT, text);
+                    i.setClassName(pkg, cls);
+                    startActivity(i);
+                } catch (Exception e) { /* app gone or refused */ }
+            });
+            return true;
+        }
+
+        @JavascriptInterface
+        public String queueDownload(String url, String filename, String title, String poster) {
+            return String.valueOf(PichaDownloads.queue(MainActivity.this, url, filename, title, poster));
+        }
+
+        @JavascriptInterface
+        public boolean getWifiOnly() {
+            return PichaDownloads.wifiOnly(MainActivity.this);
+        }
+
+        @JavascriptInterface
+        public void setWifiOnly(boolean v) {
+            PichaDownloads.setWifiOnly(MainActivity.this, v);
+        }
+
+        @JavascriptInterface
+        public String getFreeBytes() {
+            return String.valueOf(PichaDownloads.freeBytes());
+        }
+
+        @JavascriptInterface
+        public String getDownloads() {
+            return PichaDownloads.list(MainActivity.this);
+        }
+
+        @JavascriptInterface
+        public String getProgress() {
+            return PichaDownloads.progress(MainActivity.this);
+        }
+
+        @JavascriptInterface
+        public void pauseDownload(long id) {
+            PichaEngine.pause(MainActivity.this, id);
+        }
+
+        @JavascriptInterface
+        public void resumeDownload(long id) {
+            PichaEngine.resume(MainActivity.this, id);
+        }
+
+        @JavascriptInterface
+        public boolean playDownload(long id) {
+            return PichaDownloads.play(MainActivity.this, id);
+        }
+
+        @JavascriptInterface
+        public boolean downloadExists(long id) {
+            return PichaDownloads.exists(MainActivity.this, id);
+        }
+
+        @JavascriptInterface
+        public void removeDownload(long id) {
+            PichaDownloads.remove(MainActivity.this, id);
+        }
+
+        @JavascriptInterface
+        public void openDownloads() {
+            runOnUiThread(() -> webView.loadUrl(OFFLINE_URL + "#downloads"));
+        }
+
+        @JavascriptInterface
+        public void openUploads() {
+            runOnUiThread(() -> webView.loadUrl(OFFLINE_URL + "#uploads"));
+        }
+
         @JavascriptInterface
         public void onSessionToken(String token) {
             if (token != null && !token.isEmpty() && !token.equals("null")) {
@@ -53,8 +255,30 @@ public class MainActivity extends AppCompatActivity {
         }
 
         @JavascriptInterface
+        public boolean batteryExempt() { return ppBatteryExempt(); }
+
+        @JavascriptInterface
+        public void toggleBatteryExemption() { runOnUiThread(() -> ppToggleBattery()); }
+
+        @JavascriptInterface
+        public void exitApp() {
+            runOnUiThread(() -> finish());
+        }
+
+        @JavascriptInterface
+        public void toast(String msg) {
+            runOnUiThread(() -> android.widget.Toast.makeText(MainActivity.this, msg, android.widget.Toast.LENGTH_SHORT).show());
+        }
+
+        @JavascriptInterface
+        public void playSound(String name) {
+            SoundFx.play(name);
+        }
+
+        @JavascriptInterface
         public void showCastButton(boolean show) {
             runOnUiThread(() -> {
+                castForcedHidden = !show;
                 if (castButton != null) {
                     castButton.setVisibility(show ? android.view.View.VISIBLE : android.view.View.GONE);
                 }
@@ -67,8 +291,18 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        SecurityChannel.create(this);
+        SoundFx.init(this);
         requestWindowFeature(Window.FEATURE_NO_TITLE);
         getWindow().setStatusBarColor(Color.BLACK);
+
+        if (!true) {
+            WebView fallback = new WebView(this);
+            fallback.setBackgroundColor(Color.parseColor("#0f0f0f"));
+            fallback.loadUrl(OFFLINE_URL);
+            setContentView(fallback);
+            return;
+        }
 
         try {
             castContext = CastContext.getSharedInstance(this);
@@ -78,7 +312,9 @@ public class MainActivity extends AppCompatActivity {
 
         FrameLayout frame = new FrameLayout(this);
 
-        webView = new WebView(this);
+        webView = new PPWebView(this);
+        webView.setVerticalScrollBarEnabled(false);
+        webView.setHorizontalScrollBarEnabled(false);
         webView.setLayoutParams(new FrameLayout.LayoutParams(
             FrameLayout.LayoutParams.MATCH_PARENT,
             FrameLayout.LayoutParams.MATCH_PARENT));
@@ -117,6 +353,8 @@ public class MainActivity extends AppCompatActivity {
         settings.setLoadWithOverviewMode(true);
         settings.setUseWideViewPort(true);
         settings.setCacheMode(WebSettings.LOAD_DEFAULT);
+        webView.setLayerType(android.view.View.LAYER_TYPE_HARDWARE, null);
+        webView.setOverScrollMode(android.view.View.OVER_SCROLL_NEVER);
         settings.setUserAgentString(
             "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 " +
             "(KHTML, like Gecko) Chrome/123.0.0.0 Mobile Safari/537.36"
@@ -129,6 +367,51 @@ public class MainActivity extends AppCompatActivity {
         }
 
         webView.addJavascriptInterface(new PichaJSBridge(), "PichaApp");
+        CastHelper dlnaCast = new CastHelper(this, webView);
+        webView.addJavascriptInterface(dlnaCast, "PichaChromecast");
+        if (castButton != null) dlnaCast.attach(castButton);
+        webView.addJavascriptInterface(new Object() {
+            @android.webkit.JavascriptInterface
+            public boolean get() {
+                return getSharedPreferences("pp_prefs", MODE_PRIVATE).getBoolean("autofill", true);
+            }
+            @android.webkit.JavascriptInterface
+            public void set(boolean on) {
+                getSharedPreferences("pp_prefs", MODE_PRIVATE).edit().putBoolean("autofill", on).apply();
+                runOnUiThread(() -> ppApplyAutofill(on));
+            }
+        }, "PPAutofill");
+        ppApplyAutofill(getSharedPreferences("pp_prefs", MODE_PRIVATE).getBoolean("autofill", true));
+        webView.addJavascriptInterface(new Object() {
+            @android.webkit.JavascriptInterface
+            public void want(boolean b) { pp_wantKb = b; }
+        }, "PPKb");
+        webView.addJavascriptInterface(new Object() {
+            @android.webkit.JavascriptInterface public long clearUploadTemp() { UploadStore.sweepOrphans(MainActivity.this); return 0; }
+            @android.webkit.JavascriptInterface public long deepClean() { return UploadStore.deepClean(MainActivity.this); }
+            @android.webkit.JavascriptInterface public long tempBytes() { return VideoCompressor.tempBytes(MainActivity.this); }
+            @android.webkit.JavascriptInterface public String listCopies() { return VideoCompressor.listCopies(MainActivity.this); }
+            @android.webkit.JavascriptInterface public void deleteCopy(String name, long size) { VideoCompressor.deleteCopy(MainActivity.this, name, size); }
+            @android.webkit.JavascriptInterface public String networkType() { return VideoCompressor.networkType(MainActivity.this); }
+            @android.webkit.JavascriptInterface public void saveUpload(String json) { UploadStore.saveUpload(MainActivity.this, json); }
+            @android.webkit.JavascriptInterface public void dropRecord(String key, String uploadId) { UploadStore.dropRecord(MainActivity.this, key, uploadId); }
+            @android.webkit.JavascriptInterface public void finishUpload(String key, String uploadId) { UploadStore.finishUpload(MainActivity.this, key, uploadId); }
+            @android.webkit.JavascriptInterface public void cancelUpload(String key, String uploadId) { UploadStore.cancelUpload(MainActivity.this, key, uploadId); }
+            @android.webkit.JavascriptInterface public String listUploads() { return UploadStore.list(MainActivity.this); }
+            @android.webkit.JavascriptInterface public String getPickedFolder() { String f = ppPickedFolder; return f == null ? "" : f; }
+            @android.webkit.JavascriptInterface public String getPickedName() { String n = ppPickedName; ppPickedName = ""; return n == null ? "" : n; }
+            @android.webkit.JavascriptInterface public String getUploadNet() { return UploadStore.getNet(MainActivity.this); }
+            @android.webkit.JavascriptInterface public void setUploadNet(String v) { UploadStore.setNet(MainActivity.this, v); }
+            @android.webkit.JavascriptInterface public boolean uploadAllowedNow() { return UploadStore.allowedNow(MainActivity.this); }
+        }, "PichaTemp");
+        new Thread(() -> UploadStore.sweepOrphans(MainActivity.this)).start();
+        UploadStore.flush(this);
+        try {
+            ((android.net.ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE)).registerDefaultNetworkCallback(new android.net.ConnectivityManager.NetworkCallback() {
+                @Override public void onAvailable(android.net.Network n) { UploadStore.flush(MainActivity.this); }
+            });
+        } catch (Throwable t) {}
+        ppWatchAutofill();
 
         webView.setDownloadListener(new DownloadListener() {
             @Override
@@ -214,8 +497,9 @@ public class MainActivity extends AppCompatActivity {
                     }
                 );
                 // Only show cast button on main app page
-                boolean isMainPage = url != null && url.contains("keromisec9-prog.github.io/picha-plus");
+                boolean isMainPage = isPichaMain(url);
                 if (castButton != null) {
+                    castForcedHidden = false;
                     castButton.setVisibility(isMainPage ? android.view.View.VISIBLE : android.view.View.GONE);
                 }
             }
@@ -224,13 +508,31 @@ public class MainActivity extends AppCompatActivity {
             public void onReceivedError(WebView view, WebResourceRequest request,
                                         WebResourceError error) {
                 if (request.isForMainFrame() &&
-                    request.getUrl().toString().contains("keromisec9-prog.github.io")) {
+                    isPichaMain(request.getUrl().toString())) {
                     view.loadUrl(OFFLINE_URL);
                 }
             }
         });
 
         webView.setWebChromeClient(new WebChromeClient() {
+            @Override
+            public boolean onShowFileChooser(WebView wv, ValueCallback<Uri[]> cb, FileChooserParams params) {
+                if (pichaFileCallback != null) pichaFileCallback.onReceiveValue(null);
+                pichaFileCallback = cb;
+                try {
+                    Intent pi = params.createIntent();
+                    if (android.os.Build.VERSION.SDK_INT >= 33 && !ppAskedVideoPerm
+                            && checkSelfPermission(Manifest.permission.READ_MEDIA_VIDEO) != PackageManager.PERMISSION_GRANTED) {
+                        ppAskedVideoPerm = true;
+                        ppPendingIntent = pi;
+                        ppVideoPerm.launch(Manifest.permission.READ_MEDIA_VIDEO);
+                    } else {
+                        pichaFilePicker.launch(pi);
+                    }
+                }
+                catch (Exception e) { pichaFileCallback = null; return false; }
+                return true;
+            }
             @Override
             public void onShowCustomView(android.view.View view, CustomViewCallback callback) {
                 if (customView != null) {
@@ -264,13 +566,107 @@ public class MainActivity extends AppCompatActivity {
         });
 
         if (isConnected()) {
-            webView.loadUrl(HOME_URL);
+            AppStatusChecker.fetch(status -> {
+                if (status.maintenance) {
+                    Intent intent = new Intent(MainActivity.this, MaintenanceActivity.class);
+                    intent.putExtra("title", status.title);
+                    intent.putExtra("message", status.message);
+                    intent.putExtra("endTime", status.endTime);
+                    intent.putExtra("statusCode", status.statusCode);
+                    startActivity(intent);
+                    finish();
+                } else {
+                    webView.loadUrl(HOME_URL);
+                }
+            });
         } else {
             webView.loadUrl(OFFLINE_URL);
         }
 
         // Also intercept any navigation attempt when offline
         webView.setNetworkAvailable(isConnected());
+    }
+
+    private volatile boolean pp_wantKb = false;
+    private long pp_lostFocusAt = 0;
+
+    private void ppShowKb(long delay) {
+        if (webView == null) return;
+        webView.postDelayed(() -> {
+            if (!pp_wantKb) return;
+            webView.requestFocus();
+            android.view.inputmethod.InputMethodManager imm =
+                (android.view.inputmethod.InputMethodManager) getSystemService(INPUT_METHOD_SERVICE);
+            if (imm != null) imm.showSoftInput(webView, 0);
+        }, delay);
+    }
+
+    private void ppWatchAutofill() {
+        if (android.os.Build.VERSION.SDK_INT < 26) return;
+        android.view.autofill.AutofillManager am =
+            getSystemService(android.view.autofill.AutofillManager.class);
+        if (am == null) return;
+        am.registerCallback(new android.view.autofill.AutofillManager.AutofillCallback() {
+            private void h(int event) {
+                if (event == EVENT_INPUT_SHOWN || event == EVENT_INPUT_HIDDEN) {
+                    ppShowKb(60); ppShowKb(250); ppShowKb(600);
+                }
+            }
+            @Override public void onAutofillEvent(android.view.View v, int event) { h(event); }
+            @Override public void onAutofillEvent(android.view.View v, int virtualId, int event) { h(event); }
+        });
+    }
+
+    @Override
+    public void onWindowFocusChanged(boolean hasFocus) {
+        super.onWindowFocusChanged(hasFocus);
+        if (!hasFocus) { pp_lostFocusAt = System.currentTimeMillis(); return; }
+        if (pp_wantKb && System.currentTimeMillis() - pp_lostFocusAt < 1500) ppShowKb(50);
+    }
+
+    static volatile boolean ppAutofillOn = true;
+    private Boolean ppLastAutofill = null;
+
+    static class PPWebView extends WebView {
+        PPWebView(android.content.Context c) { super(c); }
+        @Override
+        public void onProvideAutofillVirtualStructure(android.view.ViewStructure structure, int flags) {
+            if (ppAutofillOn) super.onProvideAutofillVirtualStructure(structure, flags);
+        }
+        @Override
+        public void autofill(android.util.SparseArray<android.view.autofill.AutofillValue> values) {
+            if (ppAutofillOn) super.autofill(values);
+        }
+    }
+
+    private void ppApplyAutofill(boolean on) {
+        ppAutofillOn = on;
+        if (android.os.Build.VERSION.SDK_INT < 26 || webView == null) return;
+        int mode = on
+            ? android.view.View.IMPORTANT_FOR_AUTOFILL_AUTO
+            : android.view.View.IMPORTANT_FOR_AUTOFILL_NO_EXCLUDE_DESCENDANTS;
+        getWindow().getDecorView().setImportantForAutofill(mode);
+        webView.setImportantForAutofill(mode);
+        if (ppLastAutofill == null || ppLastAutofill.booleanValue() != on) {
+            ppLastAutofill = on;
+            android.view.autofill.AutofillManager am =
+                getSystemService(android.view.autofill.AutofillManager.class);
+            if (am != null) am.cancel();
+        }
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        if (webView != null) {
+            webView.evaluateJavascript("try{if(typeof flushProgress==='function')flushProgress();}catch(e){}", null);
+        }
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        ppApplyAutofill(getSharedPreferences("pp_prefs", MODE_PRIVATE).getBoolean("autofill", true));
     }
 
     private void hideSystemUI() {
@@ -288,14 +684,80 @@ public class MainActivity extends AppCompatActivity {
             android.view.View.SYSTEM_UI_FLAG_LAYOUT_STABLE);
     }
 
+    private long ppLastBack = 0;
+    private android.widget.Toast ppBackToast;
+
     @Override
     public void onBackPressed() {
         if (customView != null) {
             webView.getWebChromeClient().onHideCustomView();
+        } else if (webView.getUrl() != null && webView.getUrl().startsWith(OFFLINE_URL)) {
+            webView.evaluateJavascript(
+                "(function(){try{return !!(window.__ppOfflineBack&&window.__ppOfflineBack());}catch(e){return false;}})()",
+                new android.webkit.ValueCallback<String>() {
+                    @Override public void onReceiveValue(String v) {
+                        if ("true".equals(v)) return;
+                        if (webView.canGoBack()) webView.goBack(); else ppExitToast();
+                    }
+                });
         } else if (webView.canGoBack()) {
             webView.goBack();
         } else {
-            super.onBackPressed();
+            webView.evaluateJavascript(
+                "(function(){try{return !!(window.__ppRunFallbacks&&window.__ppRunFallbacks());}catch(e){return false;}})()",
+                new android.webkit.ValueCallback<String>() {
+                    @Override public void onReceiveValue(String v) {
+                        if (!"true".equals(v)) ppExitToast();
+                    }
+                });
+        }
+    }
+
+    private boolean ppBatteryExempt() {
+        try {
+            android.os.PowerManager pm = (android.os.PowerManager) getSystemService(POWER_SERVICE);
+            return pm != null && pm.isIgnoringBatteryOptimizations(getPackageName());
+        } catch (Exception e) { return true; }
+    }
+
+    private void ppRequestBattery() {
+        try {
+            startActivity(new android.content.Intent(
+                android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                android.net.Uri.parse("package:" + getPackageName())));
+        } catch (Exception e) {
+            try { startActivity(new android.content.Intent(android.provider.Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)); } catch (Exception e2) {}
+        }
+    }
+
+    private void ppAskBatteryOnce() {
+        try {
+            android.content.SharedPreferences sp = getSharedPreferences("picha_prefs", MODE_PRIVATE);
+            if (sp.getBoolean("battery_asked", false) || ppBatteryExempt()) return;
+            sp.edit().putBoolean("battery_asked", true).apply();
+            ppRequestBattery();
+        } catch (Exception e) {}
+    }
+
+    private void ppToggleBattery() {
+        if (ppBatteryExempt()) {
+            try { startActivity(new android.content.Intent(android.provider.Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)); } catch (Exception e) {}
+        } else {
+            ppRequestBattery();
+        }
+    }
+
+    private void ppExitToast() {
+        {
+            long now = System.currentTimeMillis();
+            if (now - ppLastBack < 2000) {
+                if (ppBackToast != null) ppBackToast.cancel();
+                super.onBackPressed();
+            } else {
+                ppLastBack = now;
+                ppBackToast = android.widget.Toast.makeText(this, "Press again to exit", android.widget.Toast.LENGTH_SHORT);
+                ppBackToast.show();
+            }
         }
     }
 }

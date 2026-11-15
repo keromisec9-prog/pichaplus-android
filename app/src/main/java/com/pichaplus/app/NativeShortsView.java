@@ -59,7 +59,7 @@ public class NativeShortsView extends FrameLayout {
     private static final String P_FULL_OUT = "M5 16h3v3h2v-5H5v2z M8 8H5v2h5V5H8v3z M14 19h2v-3h3v-2h-5v5z M16 8V5h-2v5h5V8h-3z";
 
     static final class Item {
-        String id = "", meta = "", title = "", desc = "", cta = "", likeCount = "Like", saveLabel = "Save", saveCount = "", user = "", avatar = "";
+        String id = "", meta = "", title = "", desc = "", cta = "", likeCount = "Like", saveLabel = "Save", saveCount = "", commentCount = "", user = "", avatar = "";
         boolean isShort, liked, saved, studio;
         long preStartMs;
         String url;
@@ -191,6 +191,7 @@ public class NativeShortsView extends FrameLayout {
             it.saved = o.optInt("s") == 1;
             it.saveLabel = o.optString("sl", "Save");
             it.saveCount = o.optString("sc");
+            it.commentCount = o.optString("cc");
             it.user = o.optString("u");
             it.avatar = o.optString("av");
             pager.getAdapter().notifyItemChanged(i, "ui");
@@ -686,7 +687,7 @@ public class NativeShortsView extends FrameLayout {
         int idx = -1;
         VideoBox box;
         View grad;
-        TextView tvMeta, tvTitle, tvDesc, tvCta, tvLike, tvSave, tvSaveCnt;
+        TextView tvMeta, tvTitle, tvDesc, tvCta, tvLike, tvSave, tvSaveCnt, tvComCnt;
         Ico icLike, icSave, icAuto, icFull;
         LinearLayout ctaBtn, fullCol;
         FrameLayout backBtn, pauseCircle;
@@ -799,7 +800,9 @@ public class NativeShortsView extends FrameLayout {
             Ico icCom = new Ico(c, P_COMMENT);
             TextView tvCom = label(c, 11);
             tvCom.setText("Comment");
-            commentsCol = col(c, icCom, 26, new OnClickListener() { @Override public void onClick(View v) { act("comments", idx); } }, tvCom);
+            tvComCnt = label(c, 10);
+            tvComCnt.setAlpha(0.85f);
+            commentsCol = col(c, icCom, 26, new OnClickListener() { @Override public void onClick(View v) { act("comments", idx); } }, tvCom, tvComCnt);
 
             View[] oc = new View[right.getChildCount()];
             for (int k = 0; k < oc.length; k++) oc[k] = right.getChildAt(k);
@@ -1062,6 +1065,7 @@ public class NativeShortsView extends FrameLayout {
             tvSave.setText(it.saveLabel);
             tvSave.setTextColor(it.saved ? GOLD : Color.WHITE);
             tvSaveCnt.setText(it.saveCount);
+            tvComCnt.setText(it.commentCount);
             applyCreator(it);
         }
 
