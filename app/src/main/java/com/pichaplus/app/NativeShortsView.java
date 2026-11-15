@@ -696,6 +696,7 @@ public class NativeShortsView extends FrameLayout {
             col.setPadding(dp(c, 6), dp(c, 8), dp(c, 6), dp(c, 8));
             col.addView(ic, new LinearLayout.LayoutParams(dp(c, size), dp(c, size)));
             for (TextView t : ls) col.addView(t, new LinearLayout.LayoutParams(-2, -2));
+            col.setLayoutParams(new LinearLayout.LayoutParams(-2, -2));
             col.setOnClickListener(l);
             return col;
         }
@@ -1062,9 +1063,10 @@ public class NativeShortsView extends FrameLayout {
             final String u = it.avatar == null ? "" : it.avatar;
             avatarIv.setTag(u);
             avatarIv.setImageDrawable(null);
+            avatarLetter.setVisibility(VISIBLE);
             if (u.isEmpty()) return;
             android.graphics.Bitmap cb = AV_CACHE.get(u);
-            if (cb != null) { avatarIv.setImageBitmap(cb); return; }
+            if (cb != null) { avatarIv.setImageBitmap(cb); avatarLetter.setVisibility(GONE); return; }
             new Thread(new Runnable() {
                 @Override public void run() {
                     try {
@@ -1078,7 +1080,7 @@ public class NativeShortsView extends FrameLayout {
                         if (bm.getWidth() > 192) bm = android.graphics.Bitmap.createScaledBitmap(bm, 192, Math.max(1, Math.round(bm.getHeight() * 192f / bm.getWidth())), true);
                         final android.graphics.Bitmap fb = bm;
                         AV_CACHE.put(u, fb);
-                        avatarIv.post(new Runnable() { @Override public void run() { if (u.equals(avatarIv.getTag())) avatarIv.setImageBitmap(fb); } });
+                        avatarIv.post(new Runnable() { @Override public void run() { if (u.equals(avatarIv.getTag())) { avatarIv.setImageBitmap(fb); avatarLetter.setVisibility(GONE); } } });
                     } catch (Throwable t) { }
                 }
             }).start();
