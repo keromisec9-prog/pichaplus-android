@@ -51,13 +51,15 @@ public class NativeShortsView extends FrameLayout {
     private static final String P_SAVE = "M17 3H7c-1.1 0-1.99 0.9-1.99 2L5 21l7-3 7 3V5c0-1.1-0.9-2-2-2z";
     private static final String P_BACK = "M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z";
     private static final String P_PLAY = "M8 5v14l11-7z";
+    private static final String P_COMMENT = "M21.99 4c0-1.1-.89-2-1.99-2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h14l4 4-.01-18z";
+    private static final android.util.LruCache<String, android.graphics.Bitmap> AV_CACHE = new android.util.LruCache<>(24);
     private static final String P_AUTO_ON = "M12 3.5L4 11.5H8V15.5H16V11.5H20L12 3.5Z M9 17.5H15V19.5H9V17.5Z M10 21H14V22.5H10V21Z";
     private static final String P_AUTO_OFF = "M12 3.5L7 8.5H10V14H14V8.5H17L12 3.5Z M8.5 16H15.5V18H8.5V16Z M4.2 5L18.8 19.6L20.2 18.2L5.6 3.6L4.2 5Z";
     private static final String P_FULL_IN = "M7 14H5v5h5v-2H7v-3z M5 10h2V7h3V5H5v5z M17 17h-3v2h5v-5h-2v3z M14 5v2h3v3h2V5h-5z";
     private static final String P_FULL_OUT = "M5 16h3v3h2v-5H5v2z M8 8H5v2h5V5H8v3z M14 19h2v-3h3v-2h-5v5z M16 8V5h-2v5h5V8h-3z";
 
     static final class Item {
-        String id = "", meta = "", title = "", desc = "", cta = "", likeCount = "Like", saveLabel = "Save", saveCount = "";
+        String id = "", meta = "", title = "", desc = "", cta = "", likeCount = "Like", saveLabel = "Save", saveCount = "", user = "", avatar = "";
         boolean isShort, liked, saved;
         long preStartMs;
         String url;
@@ -187,6 +189,8 @@ public class NativeShortsView extends FrameLayout {
             it.saved = o.optInt("s") == 1;
             it.saveLabel = o.optString("sl", "Save");
             it.saveCount = o.optString("sc");
+            it.user = o.optString("u");
+            it.avatar = o.optString("av");
             pager.getAdapter().notifyItemChanged(i, "ui");
         }
     }
@@ -754,6 +758,53 @@ public class NativeShortsView extends FrameLayout {
             fullCol = col(c, icFull, 26, new OnClickListener() { @Override public void onClick(View v) { act("full", idx); } }, tvFull);
             right.addView(fullCol);
 
+            final View.OnClickListener prof = new View.OnClickListener() { @Override public void onClick(View v) { act("profile", idx); } };
+            avatarBox = new FrameLayout(c);
+            GradientDrawable abg = new GradientDrawable();
+            abg.setShape(GradientDrawable.OVAL);
+            abg.setColor(0xFF2A2A2A);
+            abg.setStroke(dp(c, 2), Color.WHITE);
+            avatarBox.setBackground(abg);
+            avatarBox.setPadding(dp(c, 2), dp(c, 2), dp(c, 2), dp(c, 2));
+            avatarLetter = new TextView(c);
+            avatarLetter.setTextColor(Color.WHITE);
+            avatarLetter.setTextSize(18);
+            avatarLetter.setTypeface(Typeface.DEFAULT_BOLD);
+            avatarLetter.setGravity(Gravity.CENTER);
+            avatarBox.addView(avatarLetter, new LayoutParams(-1, -1));
+            avatarIv = new android.widget.ImageView(c);
+            avatarIv.setScaleType(android.widget.ImageView.ScaleType.CENTER_CROP);
+            avatarIv.setClipToOutline(true);
+            avatarIv.setOutlineProvider(new android.view.ViewOutlineProvider() {
+                @Override public void getOutline(View v, android.graphics.Outline o) { o.setOval(0, 0, v.getWidth(), v.getHeight()); }
+            });
+            avatarBox.addView(avatarIv, new LayoutParams(-1, -1));
+            avatarBox.setOnClickListener(prof);
+            avatarBox.setVisibility(GONE);
+
+            Ico icCom = new Ico(c, P_COMMENT);
+            TextView tvCom = label(c, 11);
+            tvCom.setText("Comment");
+            commentsCol = col(c, icCom, 26, new OnClickListener() { @Override public void onClick(View v) { act("comments", idx); } }, tvCom);
+
+            View[] oc = new View[right.getChildCount()];
+            for (int k = 0; k < oc.length; k++) oc[k] = right.getChildAt(k);
+            right.removeAllViews();
+            LinearLayout.LayoutParams avl = new LinearLayout.LayoutParams(dp(c, 48), dp(c, 48));
+            avl.bottomMargin = dp(c, 6);
+            right.addView(avatarBox, avl);
+            if (oc.length == 5) {
+                right.addView(oc[0]);
+                right.addView(commentsCol);
+                right.addView(oc[2]);
+                right.addView(oc[1]);
+                right.addView(oc[4]);
+                right.addView(oc[3]);
+            } else {
+                for (int k = 0; k < oc.length; k++) right.addView(oc[k]);
+                right.addView(commentsCol);
+            }
+
             LinearLayout info = new LinearLayout(c);
             info.setOrientation(LinearLayout.VERTICAL);
             LayoutParams il = new LayoutParams(-1, -2, Gravity.BOTTOM);
@@ -761,6 +812,13 @@ public class NativeShortsView extends FrameLayout {
             il.rightMargin = dp(c, 64);
             il.bottomMargin = dp(c, 22);
             addView(info, il);
+
+            tvUser = label(c, 14);
+            tvUser.setShadowLayer(6f, 0f, 2f, 0x99000000);
+            tvUser.setPadding(0, dp(c, 6), dp(c, 12), dp(c, 4));
+            tvUser.setOnClickListener(prof);
+            tvUser.setVisibility(GONE);
+            info.addView(tvUser, new LinearLayout.LayoutParams(-2, -2));
 
             tvMeta = label(c, 11);
             tvMeta.setTextColor(GOLD);
@@ -895,6 +953,10 @@ public class NativeShortsView extends FrameLayout {
             seek.setLayoutParams(skp);
         }
 
+        FrameLayout avatarBox;
+        android.widget.ImageView avatarIv;
+        TextView avatarLetter, tvUser;
+        LinearLayout commentsCol;
         LinearLayout speedPill;
         boolean holding;
         float downX, downY;
@@ -986,6 +1048,39 @@ public class NativeShortsView extends FrameLayout {
             tvSave.setText(it.saveLabel);
             tvSave.setTextColor(it.saved ? GOLD : Color.WHITE);
             tvSaveCnt.setText(it.saveCount);
+            applyCreator(it);
+        }
+
+        void applyCreator(Item it) {
+            boolean has = it.user != null && !it.user.isEmpty();
+            tvUser.setText(has ? "@" + it.user : "");
+            tvUser.setVisibility(has ? VISIBLE : GONE);
+            avatarBox.setVisibility(has ? VISIBLE : GONE);
+            if (!has) return;
+            avatarLetter.setText(it.user.substring(0, 1).toUpperCase());
+            final String u = it.avatar == null ? "" : it.avatar;
+            avatarIv.setTag(u);
+            avatarIv.setImageDrawable(null);
+            if (u.isEmpty()) return;
+            android.graphics.Bitmap cb = AV_CACHE.get(u);
+            if (cb != null) { avatarIv.setImageBitmap(cb); return; }
+            new Thread(new Runnable() {
+                @Override public void run() {
+                    try {
+                        java.net.HttpURLConnection hc = (java.net.HttpURLConnection) new java.net.URL(u).openConnection();
+                        hc.setConnectTimeout(8000);
+                        hc.setReadTimeout(8000);
+                        java.io.InputStream is = hc.getInputStream();
+                        android.graphics.Bitmap bm = android.graphics.BitmapFactory.decodeStream(is);
+                        is.close();
+                        if (bm == null) return;
+                        if (bm.getWidth() > 192) bm = android.graphics.Bitmap.createScaledBitmap(bm, 192, Math.max(1, Math.round(bm.getHeight() * 192f / bm.getWidth())), true);
+                        final android.graphics.Bitmap fb = bm;
+                        AV_CACHE.put(u, fb);
+                        avatarIv.post(new Runnable() { @Override public void run() { if (u.equals(avatarIv.getTag())) avatarIv.setImageBitmap(fb); } });
+                    } catch (Throwable t) { }
+                }
+            }).start();
         }
 
         void applyFlags() {
