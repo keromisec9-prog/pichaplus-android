@@ -60,7 +60,7 @@ public class NativeShortsView extends FrameLayout {
 
     static final class Item {
         String id = "", meta = "", title = "", desc = "", cta = "", likeCount = "Like", saveLabel = "Save", saveCount = "", commentCount = "", user = "", avatar = "";
-        boolean isShort, liked, saved, studio;
+        boolean isShort, liked, saved, studio, plus;
         long preStartMs;
         String url;
     }
@@ -192,6 +192,7 @@ public class NativeShortsView extends FrameLayout {
             it.saveLabel = o.optString("sl", "Save");
             it.saveCount = o.optString("sc");
             it.commentCount = o.optString("cc");
+            it.plus = o.optInt("pl") == 1;
             it.user = o.optString("u");
             it.avatar = o.optString("av");
             pager.getAdapter().notifyItemChanged(i, "ui");
@@ -807,9 +808,33 @@ public class NativeShortsView extends FrameLayout {
             View[] oc = new View[right.getChildCount()];
             for (int k = 0; k < oc.length; k++) oc[k] = right.getChildAt(k);
             right.removeAllViews();
-            LinearLayout.LayoutParams avl = new LinearLayout.LayoutParams(dp(c, 48), dp(c, 48));
+            LinearLayout.LayoutParams avl = new LinearLayout.LayoutParams(dp(c, 48), dp(c, 58));
             avl.bottomMargin = dp(c, 6);
-            right.addView(avatarBox, avl);
+            avatarWrap = new FrameLayout(c);
+            avatarWrap.setClipChildren(false);
+            avatarWrap.addView(avatarBox, new android.widget.FrameLayout.LayoutParams(dp(c, 48), dp(c, 48), Gravity.TOP | Gravity.CENTER_HORIZONTAL));
+            plusBadge = new FrameLayout(c);
+            GradientDrawable pbg = new GradientDrawable();
+            pbg.setShape(GradientDrawable.OVAL);
+            pbg.setColor(GOLD);
+            plusBadge.setBackground(pbg);
+            View plusView = new View(c) {
+                @Override protected void onDraw(android.graphics.Canvas cv) {
+                    android.graphics.Paint pp = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+                    pp.setColor(0xFF111111);
+                    pp.setStrokeWidth(dp(getContext(), 2f));
+                    pp.setStrokeCap(android.graphics.Paint.Cap.ROUND);
+                    float w = getWidth(), h = getHeight(), a = w * 0.26f;
+                    cv.drawLine(w / 2f, h / 2f - a, w / 2f, h / 2f + a, pp);
+                    cv.drawLine(w / 2f - a, h / 2f, w / 2f + a, h / 2f, pp);
+                }
+            };
+            plusBadge.addView(plusView, new android.widget.FrameLayout.LayoutParams(-1, -1));
+            plusBadge.setOnClickListener(new OnClickListener() { @Override public void onClick(View v) { act("follow", idx); } });
+            plusBadge.setVisibility(GONE);
+            avatarWrap.addView(plusBadge, new android.widget.FrameLayout.LayoutParams(dp(c, 20), dp(c, 20), Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL));
+            avatarWrap.setVisibility(GONE);
+            right.addView(avatarWrap, avl);
             if (oc.length == 5) {
                 right.addView(oc[0]);
                 right.addView(commentsCol);
@@ -971,6 +996,8 @@ public class NativeShortsView extends FrameLayout {
         }
 
         FrameLayout avatarBox;
+        FrameLayout avatarWrap;
+        FrameLayout plusBadge;
         android.widget.ImageView avatarIv;
         TextView avatarLetter, tvUser;
         LinearLayout commentsCol;
@@ -1074,6 +1101,8 @@ public class NativeShortsView extends FrameLayout {
             tvUser.setText(has ? "@" + it.user : "");
             tvUser.setVisibility(has ? VISIBLE : GONE);
             avatarBox.setVisibility((has || it.studio) ? VISIBLE : GONE);
+            avatarWrap.setVisibility((has || it.studio) ? VISIBLE : GONE);
+            plusBadge.setVisibility((has && it.plus) ? VISIBLE : GONE);
             avatarLetter.setText(has ? it.user.substring(0, 1).toUpperCase() : "");
             if (!has) { avatarIv.setTag(""); avatarIv.setImageDrawable(null); return; }
             final String u = it.avatar == null ? "" : it.avatar;
