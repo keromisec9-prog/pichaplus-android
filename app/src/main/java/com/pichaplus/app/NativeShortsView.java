@@ -81,6 +81,7 @@ public class NativeShortsView extends FrameLayout {
         if (dbgTv != null) dbgTv.setText(TextUtils.join("\n", dbgLines));
     }
     private int cur = 0;
+    private android.graphics.Rect clipR = null;
     private long clipMs = 30000L;
     private boolean auto = true, full = false, overlay = false, shown = false, hostPaused = false;
 
@@ -110,7 +111,7 @@ public class NativeShortsView extends FrameLayout {
         LayoutParams dl = new LayoutParams(-2, -2, Gravity.TOP | Gravity.END);
         dl.topMargin = dp(c, 70);
         dl.rightMargin = dp(c, 8);
-        addView(dbgTv, dl);
+        ;
     }
 
     // ---------------- public API (UI thread) ----------------
@@ -215,6 +216,12 @@ public class NativeShortsView extends FrameLayout {
                 setLayoutParams(lp);
             }
         }
+        if (s.has("cw")) {
+            float dd = getResources().getDisplayMetrics().density;
+            int cx0 = Math.round(s.optInt("cx") * dd), cy0 = Math.round(s.optInt("cy") * dd);
+            clipR = new android.graphics.Rect(cx0, cy0, cx0 + Math.round(s.optInt("cw") * dd), cy0 + Math.round(s.optInt("ch") * dd));
+        } else clipR = null;
+        setClipBounds(clipR);
         overlay = s.optInt("o") == 1;
         full = s.optInt("f") == 1;
         auto = s.optInt("a") == 1;
@@ -223,6 +230,11 @@ public class NativeShortsView extends FrameLayout {
     }
 
     boolean isOverlayShown() { return shown && overlay && getVisibility() == VISIBLE; }
+
+    @Override public boolean dispatchTouchEvent(MotionEvent ev) {
+        if (clipR != null && ev.getActionMasked() == MotionEvent.ACTION_DOWN && !clipR.contains(Math.round(ev.getX()), Math.round(ev.getY()))) return false;
+        return super.dispatchTouchEvent(ev);
+    }
 
     void hostPause() {
         hostPaused = true;
@@ -421,7 +433,7 @@ public class NativeShortsView extends FrameLayout {
                 }
             }
             stagger();
-            ShortsLog.install(NativeShortsView.this);
+            ;
             if (ShortsLog.due()) ShortsLog.snap(snap());
             if (shown) { watch(players.get(cur)); watch(players.get(cur + 1)); }
             main.postDelayed(this, 200);
