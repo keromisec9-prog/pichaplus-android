@@ -890,6 +890,9 @@ public class NativeShortsView extends FrameLayout {
                 }
             }
             ctaBtn.setLayoutParams(lp);
+            LinearLayout.LayoutParams skp = (LinearLayout.LayoutParams) seek.getLayoutParams();
+            skp.topMargin = dp(c, mode == 0 ? 6 : 24);
+            seek.setLayoutParams(skp);
         }
 
         LinearLayout speedPill;
