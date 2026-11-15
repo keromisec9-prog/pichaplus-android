@@ -791,13 +791,18 @@ public class NativeShortsView extends FrameLayout {
             cb.setColor(0x66282828);
             ctaBtn.setBackground(cb);
             ctaBtn.setPadding(dp(c, 16), dp(c, 10), dp(c, 16), dp(c, 10));
-            Ico icCta = new Ico(c, P_PLAY);
+            icCta = new Ico(c, P_PLAY);
             ctaBtn.addView(icCta, new LinearLayout.LayoutParams(dp(c, 18), dp(c, 18)));
             tvCta = label(c, 14);
             LinearLayout.LayoutParams tcl = new LinearLayout.LayoutParams(-2, -2);
             tcl.leftMargin = dp(c, 6);
             ctaBtn.addView(tvCta, tcl);
-            ctaBtn.setOnClickListener(new OnClickListener() { @Override public void onClick(View v) { act("watch", idx); } });
+            ctaBtn.setOnClickListener(new OnClickListener() {
+                @Override public void onClick(View v) {
+                    if (overlay && !ctaOpen) { ctaOpen = true; applyCta(); }
+                    else act("watch", idx);
+                }
+            });
             LinearLayout.LayoutParams cl = new LinearLayout.LayoutParams(-1, -2);
             cl.topMargin = dp(c, 8);
             info.addView(ctaBtn, cl);
@@ -823,13 +828,9 @@ public class NativeShortsView extends FrameLayout {
             speedPill = new LinearLayout(c);
             speedPill.setOrientation(LinearLayout.HORIZONTAL);
             speedPill.setGravity(Gravity.CENTER_VERTICAL);
-            GradientDrawable sb = new GradientDrawable();
-            sb.setCornerRadius(dp(c, 20));
-            sb.setColor(0xB3000000);
-            speedPill.setBackground(sb);
-            speedPill.setPadding(dp(c, 14), dp(c, 8), dp(c, 14), dp(c, 8));
             TextView sv = label(c, 14);
             sv.setText("3x");
+            sv.setShadowLayer(6f, 0f, 2f, 0x99000000);
             speedPill.addView(sv, new LinearLayout.LayoutParams(-2, -2));
             for (int q = 0; q < 2; q++) {
                 LinearLayout.LayoutParams ql = new LinearLayout.LayoutParams(dp(c, 14), dp(c, 14));
@@ -849,6 +850,46 @@ public class NativeShortsView extends FrameLayout {
             setOnTouchListener(new OnTouchListener() {
                 @Override public boolean onTouch(View v, MotionEvent e) { g.onTouchEvent(e); return true; }
             });
+        }
+
+        Ico icCta;
+        boolean ctaOpen;
+        int ctaMode = -1, ctaW = -1;
+
+        void applyCta() {
+            Context c = getContext();
+            ViewGroup info = (ViewGroup) ctaBtn.getParent();
+            if (info == null) return;
+            int pw = info.getWidth();
+            int mode = !overlay ? 0 : (ctaOpen ? 2 : 1);
+            int w = mode == 2 ? (pw > 0 ? Math.round(pw * 0.9f) : -1) : -1;
+            if (mode == ctaMode && w == ctaW) return;
+            ctaMode = mode;
+            ctaW = w;
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
+            int isz = dp(c, mode == 1 ? 28 : 18);
+            icCta.setLayoutParams(new LinearLayout.LayoutParams(isz, isz));
+            if (mode == 0) {
+                int want = info.indexOfChild(tvDesc) + 1;
+                if (info.indexOfChild(ctaBtn) != want) { info.removeView(ctaBtn); info.addView(ctaBtn, want); }
+                lp.topMargin = dp(c, 8);
+                ctaBtn.setPadding(dp(c, 16), dp(c, 10), dp(c, 16), dp(c, 10));
+                tvCta.setVisibility(VISIBLE);
+            } else {
+                if (info.indexOfChild(ctaBtn) != 0) { info.removeView(ctaBtn); info.addView(ctaBtn, 0); }
+                lp.bottomMargin = dp(c, 10);
+                if (mode == 1) {
+                    lp.width = dp(c, 46);
+                    lp.height = dp(c, 46);
+                    ctaBtn.setPadding(0, 0, 0, 0);
+                    tvCta.setVisibility(GONE);
+                } else {
+                    lp.width = w;
+                    ctaBtn.setPadding(dp(c, 16), dp(c, 10), dp(c, 16), dp(c, 10));
+                    tvCta.setVisibility(VISIBLE);
+                }
+            }
+            ctaBtn.setLayoutParams(lp);
         }
 
         LinearLayout speedPill;
@@ -920,6 +961,7 @@ public class NativeShortsView extends FrameLayout {
             box.tv.setAlpha(0f);
             pauseCircle.setVisibility(GONE);
             tvDesc.setMaxLines(2);
+            ctaOpen = false;
             holding = false;
             removeCallbacks(holdRun);
             speedPill.setVisibility(GONE);
@@ -948,6 +990,7 @@ public class NativeShortsView extends FrameLayout {
             icFull.setPathData(full ? P_FULL_OUT : P_FULL_IN);
             fullCol.setVisibility((!overlay || full) ? VISIBLE : GONE);
             backBtn.setVisibility(overlay ? VISIBLE : GONE);
+            applyCta();
         }
     }
 }
