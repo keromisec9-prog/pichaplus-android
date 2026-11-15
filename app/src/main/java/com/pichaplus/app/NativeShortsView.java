@@ -51,7 +51,7 @@ public class NativeShortsView extends FrameLayout {
     private static final String P_SAVE = "M17 3H7c-1.1 0-1.99 0.9-1.99 2L5 21l7-3 7 3V5c0-1.1-0.9-2-2-2z";
     private static final String P_BACK = "M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z";
     private static final String P_PLAY = "M8 5v14l11-7z";
-    private static final String P_COMMENT = "M21.99 4c0-1.1-.89-2-1.99-2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h14l4 4-.01-18z";
+    private static final String P_COMMENT = "M7 3H17A5 5 0 0 1 22 8V12A5 5 0 0 1 17 17H11L7 21V17A5 5 0 0 1 2 12V8A5 5 0 0 1 7 3ZM7.2 10a1.3 1.3 0 1 0 2.6 0a1.3 1.3 0 1 0-2.6 0ZM10.7 10a1.3 1.3 0 1 0 2.6 0a1.3 1.3 0 1 0-2.6 0ZM14.2 10a1.3 1.3 0 1 0 2.6 0a1.3 1.3 0 1 0-2.6 0Z";
     private static final android.util.LruCache<String, android.graphics.Bitmap> AV_CACHE = new android.util.LruCache<>(24);
     private static final String P_AUTO_ON = "M12 3.5L4 11.5H8V15.5H16V11.5H20L12 3.5Z M9 17.5H15V19.5H9V17.5Z M10 21H14V22.5H10V21Z";
     private static final String P_AUTO_OFF = "M12 3.5L7 8.5H10V14H14V8.5H17L12 3.5Z M8.5 16H15.5V18H8.5V16Z M4.2 5L18.8 19.6L20.2 18.2L5.6 3.6L4.2 5Z";
@@ -60,7 +60,7 @@ public class NativeShortsView extends FrameLayout {
 
     static final class Item {
         String id = "", meta = "", title = "", desc = "", cta = "", likeCount = "Like", saveLabel = "Save", saveCount = "", user = "", avatar = "";
-        boolean isShort, liked, saved;
+        boolean isShort, liked, saved, studio;
         long preStartMs;
         String url;
     }
@@ -153,6 +153,7 @@ public class NativeShortsView extends FrameLayout {
                     it.url = urlById.get(id);
                 }
                 it.isShort = o.optInt("s") == 1;
+                it.studio = o.optInt("cr") == 1;
                 it.preStartMs = o.optLong("st") * 1000L;
                 items.add(it);
             }
@@ -729,7 +730,7 @@ public class NativeShortsView extends FrameLayout {
             right.setGravity(Gravity.CENTER_HORIZONTAL);
             LayoutParams rl = new LayoutParams(-2, -2, Gravity.BOTTOM | Gravity.END);
             rl.rightMargin = dp(c, 8);
-            rl.bottomMargin = dp(c, 200);
+            rl.bottomMargin = dp(c, 72);
             addView(right, rl);
 
             icLike = new Ico(c, P_HEART);
@@ -1055,9 +1056,9 @@ public class NativeShortsView extends FrameLayout {
             boolean has = it.user != null && !it.user.isEmpty();
             tvUser.setText(has ? "@" + it.user : "");
             tvUser.setVisibility(has ? VISIBLE : GONE);
-            avatarBox.setVisibility(has ? VISIBLE : GONE);
-            if (!has) return;
-            avatarLetter.setText(it.user.substring(0, 1).toUpperCase());
+            avatarBox.setVisibility((has || it.studio) ? VISIBLE : GONE);
+            avatarLetter.setText(has ? it.user.substring(0, 1).toUpperCase() : "");
+            if (!has) { avatarIv.setTag(""); avatarIv.setImageDrawable(null); return; }
             final String u = it.avatar == null ? "" : it.avatar;
             avatarIv.setTag(u);
             avatarIv.setImageDrawable(null);
