@@ -818,19 +818,37 @@ public class NativeShortsView extends FrameLayout {
             pbg.setShape(GradientDrawable.OVAL);
             pbg.setColor(GOLD);
             plusBadge.setBackground(pbg);
-            View plusView = new View(c) {
+            final View plusView = new View(c) {
                 @Override protected void onDraw(android.graphics.Canvas cv) {
                     android.graphics.Paint pp = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
                     pp.setColor(0xFF111111);
                     pp.setStrokeWidth(dp(getContext(), 2f));
                     pp.setStrokeCap(android.graphics.Paint.Cap.ROUND);
                     float w = getWidth(), h = getHeight(), a = w * 0.26f;
+                    if (getTag() != null) { cv.drawLine(w * 0.28f, h * 0.52f, w * 0.44f, h * 0.68f, pp); cv.drawLine(w * 0.44f, h * 0.68f, w * 0.74f, h * 0.34f, pp); return; }
                     cv.drawLine(w / 2f, h / 2f - a, w / 2f, h / 2f + a, pp);
                     cv.drawLine(w / 2f - a, h / 2f, w / 2f + a, h / 2f, pp);
                 }
             };
             plusBadge.addView(plusView, new android.widget.FrameLayout.LayoutParams(-1, -1));
-            plusBadge.setOnClickListener(new OnClickListener() { @Override public void onClick(View v) { act("follow", idx); } });
+            plusBadge.setOnClickListener(new OnClickListener() { @Override public void onClick(View v) {
+                if (plusAnim) return;
+                plusAnim = true;
+                act("follow", idx);
+                plusView.setTag("c");
+                plusView.invalidate();
+                plusBadge.postDelayed(new Runnable() { @Override public void run() {
+                    if (!plusAnim) return;
+                    plusBadge.animate().alpha(0f).setDuration(350).withEndAction(new Runnable() { @Override public void run() {
+                        plusAnim = false;
+                        plusView.setTag(null);
+                        plusView.invalidate();
+                        plusBadge.setAlpha(1f);
+                        plusBadge.setVisibility(GONE);
+                        if (curItem != null) applyCreator(curItem);
+                    } }).start();
+                } }, 650);
+            } });
             plusBadge.setVisibility(GONE);
             avatarWrap.addView(plusBadge, new android.widget.FrameLayout.LayoutParams(dp(c, 20), dp(c, 20), Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL));
             avatarWrap.setVisibility(GONE);
@@ -998,6 +1016,8 @@ public class NativeShortsView extends FrameLayout {
         FrameLayout avatarBox;
         FrameLayout avatarWrap;
         FrameLayout plusBadge;
+        boolean plusAnim;
+        Item curItem;
         android.widget.ImageView avatarIv;
         TextView avatarLetter, tvUser;
         LinearLayout commentsCol;
@@ -1102,7 +1122,15 @@ public class NativeShortsView extends FrameLayout {
             tvUser.setVisibility(has ? VISIBLE : GONE);
             avatarBox.setVisibility((has || it.studio) ? VISIBLE : GONE);
             avatarWrap.setVisibility((has || it.studio) ? VISIBLE : GONE);
-            plusBadge.setVisibility((has && it.plus) ? VISIBLE : GONE);
+            if (plusAnim && curItem != null && curItem.id != null && !curItem.id.equals(it.id)) {
+                plusBadge.animate().cancel();
+                plusAnim = false;
+                plusBadge.setAlpha(1f);
+                plusBadge.getChildAt(0).setTag(null);
+                plusBadge.getChildAt(0).invalidate();
+            }
+            curItem = it;
+            if (!plusAnim) plusBadge.setVisibility((has && it.plus) ? VISIBLE : GONE);
             avatarLetter.setText(has ? it.user.substring(0, 1).toUpperCase() : "");
             if (!has) { avatarIv.setTag(""); avatarIv.setImageDrawable(null); return; }
             final String u = it.avatar == null ? "" : it.avatar;
