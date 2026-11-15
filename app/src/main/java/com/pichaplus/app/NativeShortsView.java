@@ -871,7 +871,7 @@ public class NativeShortsView extends FrameLayout {
             ctaBtn.addView(tvCta, tcl);
             ctaBtn.setOnClickListener(new OnClickListener() {
                 @Override public void onClick(View v) {
-                    if (overlay && !ctaOpen) { ctaOpen = true; applyCta(); }
+                    if (!ctaOpen) { ctaOpen = true; applyCta(); }
                     else act("watch", idx);
                 }
             });
@@ -933,7 +933,7 @@ public class NativeShortsView extends FrameLayout {
             ViewGroup info = (ViewGroup) ctaBtn.getParent();
             if (info == null) return;
             int pw = info.getWidth();
-            int mode = !overlay ? 0 : (ctaOpen ? 2 : 1);
+            int mode = ctaOpen ? 2 : 1;
             int w = mode == 2 ? (pw > 0 ? Math.round(pw * 0.9f) : -1) : -1;
             if (mode == ctaMode && w == ctaW) return;
             ctaMode = mode;
