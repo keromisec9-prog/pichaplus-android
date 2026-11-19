@@ -818,10 +818,17 @@ public class NativeShortsView extends FrameLayout {
 
             Ico icCom = new Ico(c, P_COMMENT);
             TextView tvCom = label(c, 11);
-            tvCom.setText("Comment"); tvCom.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 8f); tvCom.setIncludeFontPadding(false); tvCom.setLetterSpacing(-0.04f);
+            tvCom.setText("Comment");
             tvComCnt = label(c, 10);
             tvComCnt.setAlpha(0.85f);
             commentsCol = col(c, icCom, 26, new OnClickListener() { @Override public void onClick(View v) { act("comments", idx); } }, tvCom, tvComCnt);
+            try {
+                LinearLayout.LayoutParams clp = (LinearLayout.LayoutParams) tvCom.getLayoutParams();
+                clp.leftMargin = -dp(c, 12); clp.rightMargin = -dp(c, 12);
+                tvCom.setLayoutParams(clp);
+                commentsCol.setClipChildren(false);
+                right.setClipChildren(false);
+            } catch (Throwable t) { }
 
             View[] oc = new View[right.getChildCount()];
             for (int k = 0; k < oc.length; k++) oc[k] = right.getChildAt(k);
@@ -993,15 +1000,27 @@ public class NativeShortsView extends FrameLayout {
         void spawnHeart(float x, float y) {
             lastHeart = SystemClock.uptimeMillis();
             Context c = getContext();
-            final TextView h = new TextView(c);
-            h.setText("\u2665");
-            h.setTextColor(0xFFFE2C55);
-            h.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 84f);
-            h.setIncludeFontPadding(false);
-            h.setShadowLayer(dp(c, 6), 0, dp(c, 2), 0x55000000);
+            final android.graphics.Path heartPath = androidx.core.graphics.PathParser.createPathFromPathData(P_HEART);
+            final android.graphics.Paint heartPaint = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+            heartPaint.setColor(0xFFFE2C55);
+            heartPaint.setShadowLayer(dp(c, 5), 0, dp(c, 2), 0x55000000);
+            final View h = new View(c) {
+                @Override protected void onDraw(android.graphics.Canvas cv) {
+                    float sc = getWidth() / 24f;
+                    cv.save(); cv.scale(sc, sc);
+                    cv.drawPath(heartPath, heartPaint);
+                    cv.restore();
+                }
+            };
+            h.setLayerType(View.LAYER_TYPE_SOFTWARE, null);
+            
+            
+            
+            
+            
             LayoutParams lp = new LayoutParams(-2, -2, Gravity.TOP | Gravity.START);
-            lp.leftMargin = Math.round(x) - dp(c, 40);
-            lp.topMargin = Math.round(y) - dp(c, 56);
+            lp.width = dp(c, 84); lp.height = dp(c, 84); lp.leftMargin = Math.round(x) - dp(c, 42);
+            lp.topMargin = Math.round(y) - dp(c, 60);
             h.setLayoutParams(lp);
             h.setRotation((float) (Math.random() * 50 - 25));
             h.setScaleX(0f); h.setScaleY(0f);
