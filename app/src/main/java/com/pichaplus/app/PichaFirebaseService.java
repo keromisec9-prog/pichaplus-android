@@ -85,7 +85,7 @@ public class PichaFirebaseService extends FirebaseMessagingService {
         PendingIntent pi = PendingIntent.getActivity(this, 0, intent, PendingIntent.FLAG_IMMUTABLE);
 
         NotificationCompat.Builder builder = new NotificationCompat.Builder(this, channelId)
-            .setSmallIcon(R.mipmap.ic_launcher)
+            .setSmallIcon(R.drawable.ic_stat_picha).setColor(0xFFEEB32A)
             .setContentTitle(title)
             .setContentText(body)
             .setAutoCancel(true)

@@ -822,14 +822,6 @@ public class NativeShortsView extends FrameLayout {
             tvComCnt = label(c, 10);
             tvComCnt.setAlpha(0.85f);
             commentsCol = col(c, icCom, 26, new OnClickListener() { @Override public void onClick(View v) { act("comments", idx); } }, tvCom, tvComCnt);
-            try {
-                LinearLayout.LayoutParams clp = (LinearLayout.LayoutParams) tvCom.getLayoutParams();
-                clp.leftMargin = -dp(c, 12); clp.rightMargin = -dp(c, 12);
-                tvCom.setLayoutParams(clp);
-                commentsCol.setClipChildren(false);
-                right.setClipChildren(false);
-            } catch (Throwable t) { }
-
             View[] oc = new View[right.getChildCount()];
             for (int k = 0; k < oc.length; k++) oc[k] = right.getChildAt(k);
             right.removeAllViews();
