@@ -460,6 +460,12 @@ public class NativeShortsView extends FrameLayout {
             p = new ExoPlayer.Builder(getContext()).setMediaSourceFactory(new androidx.media3.exoplayer.source.DefaultMediaSourceFactory(NetFactory.getCached(getContext().getApplicationContext()))).setLoadControl(lc).setRenderersFactory(new androidx.media3.exoplayer.DefaultRenderersFactory(getContext()).setEnableDecoderFallback(true)).build();
             p.addListener(this);
             p.addListener(new androidx.media3.common.Player.Listener() {
+                @Override public void onIsPlayingChanged(boolean hidePauseOnPlay) {
+                    if (!hidePauseOnPlay) return;
+                    try { Slide sl = slides.get(SP.this.idx); if (sl != null) sl.pauseCircle.setVisibility(View.GONE); } catch (Throwable t) { }
+                }
+            });
+            p.addListener(new androidx.media3.common.Player.Listener() {
                 @Override public void onPlaybackStateChanged(int st) {
                     String[] nm = {"?", "IDLE", "BUFFERING", "READY", "ENDED"};
                     ShortsLog.d(SP.this.idx, "state " + (st >= 0 && st < 5 ? nm[st] : "" + st) + " buf=" + p.getBufferedPosition() + " pos=" + p.getCurrentPosition());
@@ -545,7 +551,7 @@ public class NativeShortsView extends FrameLayout {
                 }
             }
             if (st == Player.STATE_READY && want && shown && !hostPaused) p.setPlayWhenReady(true);
-            if (st == Player.STATE_ENDED && idx == cur) { p.seekTo(startMs); p.setPlayWhenReady(true); }
+            if (st == Player.STATE_ENDED && idx == cur) { boolean autoEnded = auto && cur + 1 < items.size(); if (autoEnded) { pager.setCurrentItem(cur + 1, true); } else { p.seekTo(startMs); p.setPlayWhenReady(true); } }
             updateSpinner(idx);
         }
 
@@ -812,7 +818,7 @@ public class NativeShortsView extends FrameLayout {
 
             Ico icCom = new Ico(c, P_COMMENT);
             TextView tvCom = label(c, 11);
-            tvCom.setText("Comment");
+            tvCom.setText(""); tvCom.setVisibility(View.GONE);
             tvComCnt = label(c, 10);
             tvComCnt.setAlpha(0.85f);
             commentsCol = col(c, icCom, 26, new OnClickListener() { @Override public void onClick(View v) { act("comments", idx); } }, tvCom, tvComCnt);
