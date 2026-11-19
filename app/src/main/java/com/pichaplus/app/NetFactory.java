@@ -5,6 +5,11 @@ import androidx.media3.datasource.DataSource;
 import androidx.media3.datasource.DefaultHttpDataSource;
 import androidx.media3.datasource.cronet.CronetDataSource;
 import java.util.concurrent.Executors;
+import androidx.media3.database.StandaloneDatabaseProvider;
+import androidx.media3.datasource.cache.CacheDataSource;
+import androidx.media3.datasource.cache.LeastRecentlyUsedCacheEvictor;
+import androidx.media3.datasource.cache.SimpleCache;
+import java.io.File;
 import org.chromium.net.CronetEngine;
 
 final class NetFactory {
@@ -27,5 +32,26 @@ final class NetFactory {
             factory = fallback;
         }
         return factory;
+    }
+
+    private static SimpleCache shortsCache;
+    private static DataSource.Factory cachedFactory;
+
+    static synchronized DataSource.Factory getCached(Context c) {
+        if (cachedFactory != null) return cachedFactory;
+        DataSource.Factory up = get(c);
+        try {
+            if (shortsCache == null) {
+                File dir = new File(c.getApplicationContext().getCacheDir(), "shorts_cache");
+                shortsCache = new SimpleCache(dir, new LeastRecentlyUsedCacheEvictor(200L * 1024 * 1024), new StandaloneDatabaseProvider(c.getApplicationContext()));
+            }
+            cachedFactory = new CacheDataSource.Factory()
+                .setCache(shortsCache)
+                .setUpstreamDataSourceFactory(up)
+                .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR);
+        } catch (Throwable t) {
+            cachedFactory = up;
+        }
+        return cachedFactory;
     }
 }

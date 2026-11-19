@@ -457,7 +457,7 @@ public class NativeShortsView extends FrameLayout {
             this.idx = idx;
             this.itemId = itemId;
             DefaultLoadControl lc = new DefaultLoadControl.Builder().setBufferDurationsMs(2000, 8000, 300, 800).build();
-            p = new ExoPlayer.Builder(getContext()).setMediaSourceFactory(new androidx.media3.exoplayer.source.DefaultMediaSourceFactory(NetFactory.get(getContext().getApplicationContext()))).setLoadControl(lc).build();
+            p = new ExoPlayer.Builder(getContext()).setMediaSourceFactory(new androidx.media3.exoplayer.source.DefaultMediaSourceFactory(NetFactory.getCached(getContext().getApplicationContext()))).setLoadControl(lc).setRenderersFactory(new androidx.media3.exoplayer.DefaultRenderersFactory(getContext()).setEnableDecoderFallback(true)).build();
             p.addListener(this);
             p.addListener(new androidx.media3.common.Player.Listener() {
                 @Override public void onPlaybackStateChanged(int st) {
@@ -497,6 +497,18 @@ public class NativeShortsView extends FrameLayout {
             if (pre > 0) { startMs = pre; preSet = true; p.setMediaItem(MediaItem.fromUri(url), pre); }
             else p.setMediaItem(MediaItem.fromUri(url));
             p.setPlayWhenReady(false);
+        }
+
+        private boolean decoderFail(PlaybackException e) {
+            try {
+                if (e.errorCode != PlaybackException.ERROR_CODE_DECODER_INIT_FAILED && e.errorCode != PlaybackException.ERROR_CODE_DECODING_FAILED) return false;
+                for (int i = players.size() - 1; i >= 0; i--) {
+                    SP w = players.valueAt(i);
+                    if (w != SP.this && w.idx != cur) { w.release(); players.removeAt(i); }
+                }
+                ShortsLog.d(idx, "decoder failed -> freed other players, retry in 300ms");
+                return true;
+            } catch (Throwable t) { return false; }
         }
 
         void startPrepare() {
@@ -555,7 +567,7 @@ public class NativeShortsView extends FrameLayout {
             ShortsLog.d(idx, "old-onPlayerError -> retry in 1500ms");
             main.postDelayed(new Runnable() {
                 @Override public void run() { if (!dead) { try { prepared = true; p.prepare(); } catch (Throwable t) { } } }
-            }, 1500);
+            }, decoderFail(e) ? 300 : 1500);
         }
 
         void play() { ShortsLog.d(idx, "play() startApplied=" + startApplied + " shown=" + shown + " hostPaused=" + hostPaused); want = true; if (startApplied && shown && !hostPaused) p.setPlayWhenReady(true); }
