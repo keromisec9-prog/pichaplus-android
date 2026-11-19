@@ -436,9 +436,19 @@ final class VideoCompressor {
     interface PvDone { void on(boolean ok); }
     private static final String PV_WORKER = "https://picha-plus-worker.kerosoftz522.workers.dev";
 
+    static long pvStartMs = -1, pvEndMs = -1;
+
     static void processWithPreview(final Activity act, final Uri src, final Done done) {
         MainActivity.ppPickedFolder = "";
+        pvStartMs = -1; pvEndMs = -1;
         if (savedCopy(act, src) != null) { processAndKeep(act, src, done); return; }
+        TrimDialog.show(act, src, new TrimDialog.Result() {
+            public void onPick(long s, long e) { pvStartMs = s; pvEndMs = e; runPreview(act, src, done); }
+            public void onCancel() { done.onDone(null); }
+        });
+    }
+
+    private static void runPreview(final Activity act, final Uri src, final Done done) {
         final String folder = java.util.UUID.randomUUID().toString();
         makePreview(act, src, folder, ok -> {
             if (!ok) { done.onDone(null); return; }
@@ -506,8 +516,14 @@ final class VideoCompressor {
             return;
         }
         final int cap = dh <= dw ? 480 : 854;
-        final long startMs = Math.max(0L, Math.min((long) (dur * 0.27), dur - 30000L));
-        final long endMs = Math.min(dur, startMs + 30000L);
+        long s0 = Math.max(0L, Math.min((long) (dur * 0.27), dur - 30000L));
+        long e0 = Math.min(dur, s0 + 30000L);
+        if (pvStartMs >= 0 && pvEndMs > pvStartMs) {
+            s0 = Math.max(0L, Math.min(pvStartMs, dur - 1000L));
+            e0 = Math.min(dur, Math.max(pvEndMs, s0 + 1000L));
+        }
+        final long startMs = s0;
+        final long endMs = e0;
 
         File cache = act.getCacheDir();
         File[] old = cache.listFiles();
