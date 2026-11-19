@@ -818,7 +818,7 @@ public class NativeShortsView extends FrameLayout {
 
             Ico icCom = new Ico(c, P_COMMENT);
             TextView tvCom = label(c, 11);
-            tvCom.setText(""); tvCom.setVisibility(View.GONE);
+            tvCom.setText("Comment"); tvCom.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 8f); tvCom.setIncludeFontPadding(false); tvCom.setLetterSpacing(-0.04f);
             tvComCnt = label(c, 10);
             tvComCnt.setAlpha(0.85f);
             commentsCol = col(c, icCom, 26, new OnClickListener() { @Override public void onClick(View v) { act("comments", idx); } }, tvCom, tvComCnt);
@@ -980,12 +980,44 @@ public class NativeShortsView extends FrameLayout {
 
             final GestureDetector g = new GestureDetector(c, new GestureDetector.SimpleOnGestureListener() {
                 @Override public boolean onDown(MotionEvent e) { return true; }
-                @Override public boolean onSingleTapConfirmed(MotionEvent e) { togglePause(idx); return true; }
-                @Override public boolean onDoubleTap(MotionEvent e) { act("dbl", idx); return true; }
+                @Override public boolean onSingleTapConfirmed(MotionEvent e) { if (SystemClock.uptimeMillis() - lastHeart < 600) { spawnHeart(e.getX(), e.getY()); return true; } togglePause(idx); return true; }
+                @Override public boolean onDoubleTap(MotionEvent e) { boolean again = SystemClock.uptimeMillis() - lastHeart < 600; if (!again) act("dbl", idx); spawnHeart(e.getX(), e.getY()); return true; }
             });
             setOnTouchListener(new OnTouchListener() {
                 @Override public boolean onTouch(View v, MotionEvent e) { g.onTouchEvent(e); return true; }
             });
+        }
+
+        long lastHeart = 0;
+
+        void spawnHeart(float x, float y) {
+            lastHeart = SystemClock.uptimeMillis();
+            Context c = getContext();
+            final TextView h = new TextView(c);
+            h.setText("\u2665");
+            h.setTextColor(0xFFFE2C55);
+            h.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 84f);
+            h.setIncludeFontPadding(false);
+            h.setShadowLayer(dp(c, 6), 0, dp(c, 2), 0x55000000);
+            LayoutParams lp = new LayoutParams(-2, -2, Gravity.TOP | Gravity.START);
+            lp.leftMargin = Math.round(x) - dp(c, 40);
+            lp.topMargin = Math.round(y) - dp(c, 56);
+            h.setLayoutParams(lp);
+            h.setRotation((float) (Math.random() * 50 - 25));
+            h.setScaleX(0f); h.setScaleY(0f);
+            h.setClickable(false);
+            addView(h);
+            h.animate().scaleX(1.3f).scaleY(1.3f).setDuration(140).withEndAction(new Runnable() {
+                @Override public void run() {
+                    h.animate().scaleX(1f).scaleY(1f).setDuration(100).withEndAction(new Runnable() {
+                        @Override public void run() {
+                            h.animate().translationY(-dp(h.getContext(), 100)).alpha(0f).setDuration(550).withEndAction(new Runnable() {
+                                @Override public void run() { try { removeView(h); } catch (Throwable t) { } }
+                            }).start();
+                        }
+                    }).start();
+                }
+            }).start();
         }
 
         Ico icCta;
@@ -1080,9 +1112,9 @@ public class NativeShortsView extends FrameLayout {
                 holding = false;
                 removeCallbacks(holdRun);
                 float x = e.getX(), w = getWidth();
-                if ((x < w * 0.2f || x > w * 0.8f) && !onSeekBar(e)) {
+                if ((x < w * 0.3f || x > w * 0.7f) && !onSeekBar(e)) {
                     downX = e.getX(); downY = e.getY(); downT = e.getDownTime();
-                    postDelayed(holdRun, 350);
+                    postDelayed(holdRun, 220);
                 }
             } else if (a == MotionEvent.ACTION_MOVE && !holding) {
                 if (Math.abs(e.getX() - downX) > slop || Math.abs(e.getY() - downY) > slop) removeCallbacks(holdRun);
