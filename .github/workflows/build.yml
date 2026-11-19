@@ -12,6 +12,13 @@ jobs:
         with:
           java-version: '17'
           distribution: 'temurin'
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ hashFiles('**/*.gradle', 'gradle.properties') }}
+          restore-keys: gradle-
       - name: Setup Gradle
         run: |
           mkdir -p gradle/wrapper
