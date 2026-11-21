@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical">
+    <TextView android:id="@+id/digest_title" android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:singleLine="true" android:textAppearance="@android:style/TextAppearance.Material.Notification.Title"/>
+    <TextView android:id="@+id/digest_body" android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:singleLine="true" android:textAppearance="@android:style/TextAppearance.Material.Notification"/>
+    <LinearLayout android:id="@+id/digest_row1" android:layout_width="match_parent" android:layout_height="76dp"
+        android:orientation="horizontal" android:layout_marginTop="6dp">
+        <ImageView android:id="@+id/digest_p0" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:layout_margin="2dp" android:scaleType="centerCrop"/>
+        <ImageView android:id="@+id/digest_p1" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:layout_margin="2dp" android:scaleType="centerCrop"/>
+        <ImageView android:id="@+id/digest_p2" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:layout_margin="2dp" android:scaleType="centerCrop"/>
+        <ImageView android:id="@+id/digest_p3" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:layout_margin="2dp" android:scaleType="centerCrop"/>
+        <ImageView android:id="@+id/digest_p4" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:layout_margin="2dp" android:scaleType="centerCrop"/>
+    </LinearLayout>
+    <LinearLayout android:id="@+id/digest_row2" android:layout_width="match_parent" android:layout_height="76dp"
+        android:orientation="horizontal" android:layout_marginTop="2dp">
+        <ImageView android:id="@+id/digest_p5" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:layout_margin="2dp" android:scaleType="centerCrop"/>
+        <ImageView android:id="@+id/digest_p6" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:layout_margin="2dp" android:scaleType="centerCrop"/>
+        <ImageView android:id="@+id/digest_p7" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:layout_margin="2dp" android:scaleType="centerCrop"/>
+        <ImageView android:id="@+id/digest_p8" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:layout_margin="2dp" android:scaleType="centerCrop"/>
+        <ImageView android:id="@+id/digest_p9" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:layout_margin="2dp" android:scaleType="centerCrop"/>
+    </LinearLayout>
+</LinearLayout>
