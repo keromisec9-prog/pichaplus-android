@@ -131,31 +131,109 @@ public class TrimDialog {
         }
     }
 
-    // ---------- TikTok-style selector: drag the box, or resize with the handles (hard max) ----------
+    // ---------- selector: zoomed, scrollable timeline; drag the box, resize with handles (hard max) ----------
     static class TrimBar extends View {
-        interface L { void onChange(int mode, long s, long e); }   // mode 1 = start handle, 2 = end handle, 3 = whole box
-        long dur, s, e, max, min, play = -1;
+        interface L { void onChange(int mode, long s, long e); }   // 1 start handle, 2 end handle, 3 box, 4 box pushed by scrolling, 5 scrolling settled
+        static final long SPAN_MS = 120000L;                       // time visible across the strip at once
+        long dur, s, e, max, min, play = -1, interval;
+        volatile long vStart, span;
+        volatile boolean closed;
         L l;
-        Bitmap[] thumbs;
+        Uri uri;
+        MediaMetadataRetriever mmr;
         int drag = 0, hw, bubbleH, bt;
         long ds0, de0;
-        float downX;
-        boolean blocked;
+        float downX, lastX;
+        boolean blocked, shifted, flinging;
         Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
         Paint bp = new Paint(Paint.FILTER_BITMAP_FLAG | Paint.ANTI_ALIAS_FLAG);
         Path path = new Path();
         RectF rf = new RectF(), dstF = new RectF();
         Rect src = new Rect();
+        android.util.LruCache<Integer, Bitmap> cache = new android.util.LruCache<Integer, Bitmap>(48);
+        final java.util.HashSet<Integer> pending = new java.util.HashSet<Integer>();
+        java.util.concurrent.ExecutorService ex = java.util.concurrent.Executors.newSingleThreadExecutor();
+        android.widget.OverScroller sc;
+        android.view.VelocityTracker vt;
+
+        final Runnable flingStep = new Runnable() { public void run() {
+            if (!flinging) return;
+            if (sc.computeScrollOffset()) {
+                setView((long) (sc.getCurrX() / ((getWidth() - 2f * hw) / (float) span)));
+                postOnAnimation(this);
+            } else { flinging = false; settle(); }
+        }};
 
         TrimBar(Context c) {
             super(c);
             hw = dp(c, 16);
             bubbleH = dp(c, 30);
             bt = dp(c, 4);
+            sc = new android.widget.OverScroller(c);
         }
 
-        float pos(long t) { float w = getWidth() - 2f * hw; return hw + w * t / (float) dur; }
-        long timeAt(float x) { float w = getWidth() - 2f * hw; return (long) (Math.max(0f, Math.min(1f, (x - hw) / w)) * dur); }
+        void init(Uri u, long d, long s0, long e0) {
+            uri = u; dur = d; s = s0; e = e0;
+            span = Math.min(d, SPAN_MS);
+            interval = Math.max(500L, span / 8);
+            vStart = Math.max(0L, Math.min(s0 - (span - (e0 - s0)) / 2, d - span));
+        }
+
+        int ovArea() { return dur > SPAN_MS ? dp(getContext(), 14) : 0; }
+        float tw() { return getWidth() - 2f * hw; }
+        float pos(long t) { return hw + tw() * (t - vStart) / (float) span; }
+        long timeAt(float x) { return vStart + (long) ((x - hw) / tw() * span); }
+
+        void setView(long v) {
+            vStart = Math.max(0L, Math.min(v, dur - span));
+            long len = e - s;
+            long ns = Math.max(vStart, Math.min(s, vStart + span - len));
+            if (ns != s) {
+                s = ns; e = ns + len; shifted = true;
+                if (l != null) l.onChange(4, s, e);
+            }
+            invalidate();
+        }
+
+        void settle() {
+            if (shifted) { shifted = false; if (l != null) l.onChange(5, s, e); }
+        }
+
+        void seekOverview(float x) {
+            long t = (long) ((x - hw) / tw() * dur);
+            setView(t - span / 2);
+        }
+
+        void want(final int k) {
+            if (closed || k < 0 || k * interval >= dur || cache.get(k) != null) return;
+            synchronized (pending) { if (!pending.add(k)) return; }
+            ex.execute(() -> {
+                try {
+                    if (closed) return;
+                    long first = vStart / interval, last = (vStart + span) / interval;
+                    if (k < first - 2 || k > last + 2) return;
+                    if (mmr == null) { mmr = new MediaMetadataRetriever(); mmr.setDataSource(getContext(), uri); }
+                    long t = Math.min(dur - 1, k * interval + interval / 2) * 1000L;
+                    Bitmap b = mmr.getFrameAtTime(t, MediaMetadataRetriever.OPTION_CLOSEST_SYNC);
+                    if (b != null) {
+                        int th = 128, tw2 = Math.max(1, b.getWidth() * th / Math.max(1, b.getHeight()));
+                        Bitmap sb = Bitmap.createScaledBitmap(b, tw2, th, true);
+                        if (sb != b) b.recycle();
+                        cache.put(k, sb);
+                        postInvalidate();
+                    }
+                } catch (Exception x) {
+                } finally {
+                    synchronized (pending) { pending.remove(k); }
+                }
+            });
+        }
+
+        void close() {
+            closed = true;
+            ex.execute(() -> { try { if (mmr != null) mmr.release(); } catch (Exception x) {} });
+            ex.shutdown();
+        }
 
         void bubble(Canvas c, float cxB, float px, String text) {
             Context cx = getContext();
@@ -181,14 +259,14 @@ public class TrimDialog {
         }
 
         @Override protected void onDraw(Canvas c) {
+            if (dur <= 0 || span <= 0 || getWidth() == 0) return;
             Context cx = getContext();
-            float W = getWidth(), H = getHeight();
-            float ft = bubbleH, tw = W - 2f * hw;
+            float W = getWidth(), H = getHeight(), ov = ovArea();
+            float hB = H - ov, ft = bubbleH;
             float xs = pos(s), xe = pos(e);
-            float sTop = ft + bt, sBot = H - bt;
+            float sTop = ft + bt, sBot = hB - bt;
             float R = dp(cx, 8);
 
-            // thumbnail strip (rounded), dimmed outside the selection
             c.save();
             path.reset();
             rf.set(hw, sTop, W - hw, sBot);
@@ -197,25 +275,27 @@ public class TrimDialog {
             p.setStyle(Paint.Style.FILL);
             p.setColor(0xFF222222);
             c.drawRect(hw, sTop, W - hw, sBot, p);
-            if (thumbs != null) {
-                for (int i = 0; i < thumbs.length; i++) {
-                    Bitmap b = thumbs[i];
-                    if (b == null) continue;
-                    float l0 = hw + tw * i / thumbs.length, r0 = hw + tw * (i + 1) / thumbs.length;
-                    dstF.set(l0, sTop, r0, sBot);
-                    float da = (r0 - l0) / (sBot - sTop), sa = b.getWidth() / (float) b.getHeight();
-                    if (sa > da) {
-                        int w = Math.round(b.getHeight() * da);
-                        int x0 = (b.getWidth() - w) / 2;
-                        src.set(x0, 0, x0 + w, b.getHeight());
-                    } else {
-                        int h = Math.round(b.getWidth() / da);
-                        int y0 = (b.getHeight() - h) / 2;
-                        src.set(0, y0, b.getWidth(), y0 + h);
-                    }
-                    c.drawBitmap(b, src, dstF, bp);
+            int k0 = (int) (vStart / interval), k1 = (int) ((vStart + span) / interval);
+            for (int k = k0; k <= k1; k++) {
+                if (k * interval >= dur) break;
+                Bitmap b = cache.get(k);
+                if (b == null) { want(k); continue; }
+                float l0 = pos(k * interval), r0 = pos((k + 1) * interval);
+                dstF.set(l0, sTop, r0, sBot);
+                float da = (r0 - l0) / (sBot - sTop), sa = b.getWidth() / (float) b.getHeight();
+                if (sa > da) {
+                    int w = Math.round(b.getHeight() * da);
+                    int x0 = (b.getWidth() - w) / 2;
+                    src.set(x0, 0, x0 + w, b.getHeight());
+                } else {
+                    int h = Math.round(b.getWidth() / da);
+                    int y0 = (b.getHeight() - h) / 2;
+                    src.set(0, y0, b.getWidth(), y0 + h);
                 }
+                c.drawBitmap(b, src, dstF, bp);
             }
+            want(k0 - 1);
+            want(k1 + 1);
             p.setStyle(Paint.Style.FILL);
             p.setColor(0xB3000000);
             c.drawRect(hw, sTop, xs, sBot, p);
@@ -228,41 +308,37 @@ public class TrimDialog {
             rf.set(hw, sTop, W - hw, sBot);
             c.drawRoundRect(rf, R, R, p);
 
-            // gold frame: top/bottom bars + two handles
             p.setStyle(Paint.Style.FILL);
             p.setColor(GOLD);
             c.drawRect(xs, ft, xe, ft + bt, p);
-            c.drawRect(xs, H - bt, xe, H, p);
+            c.drawRect(xs, hB - bt, xe, hB, p);
             path.reset();
-            rf.set(xs - hw, ft, xs, H);
+            rf.set(xs - hw, ft, xs, hB);
             path.addRoundRect(rf, new float[]{R, R, 0, 0, 0, 0, R, R}, Path.Direction.CW);
             c.drawPath(path, p);
             path.reset();
-            rf.set(xe, ft, xe + hw, H);
+            rf.set(xe, ft, xe + hw, hB);
             path.addRoundRect(rf, new float[]{0, 0, R, R, R, R, 0, 0}, Path.Direction.CW);
             c.drawPath(path, p);
 
-            // chevrons
             p.setColor(Color.BLACK);
             p.setStyle(Paint.Style.STROKE);
             p.setStrokeWidth(dp(cx, 2));
             p.setStrokeCap(Paint.Cap.ROUND);
-            float cy = (ft + H) / 2f, a = dp(cx, 5);
+            float cy = (ft + hB) / 2f, a = dp(cx, 5);
             float cs = xs - hw / 2f, ce = xe + hw / 2f;
             c.drawLine(cs + a / 2, cy - a, cs - a / 2, cy, p);
             c.drawLine(cs - a / 2, cy, cs + a / 2, cy + a, p);
             c.drawLine(ce - a / 2, cy - a, ce + a / 2, cy, p);
             c.drawLine(ce + a / 2, cy, ce - a / 2, cy + a, p);
 
-            // playhead
             if (play >= s && play <= e) {
                 p.setColor(Color.WHITE);
                 p.setStrokeWidth(dp(cx, 2));
                 float px = pos(play);
-                c.drawLine(px, ft + bt, px, H - bt, p);
+                c.drawLine(px, ft + bt, px, hB - bt, p);
             }
 
-            // time bubbles above the handles
             float bw = dp(cx, 50), gap = bw + dp(cx, 4);
             float bs = cs, be = ce;
             if (be - bs < gap) {
@@ -276,40 +352,70 @@ public class TrimDialog {
             bs = Math.min(bs, be - gap);
             bubble(c, bs, cs, fmt(s));
             bubble(c, be, ce, fmt(e));
+
+            if (ov > 0) {
+                float oh = dp(cx, 4), oy = H - dp(cx, 6), tw0 = W - 2f * hw;
+                p.setStyle(Paint.Style.FILL);
+                p.setColor(LINE);
+                rf.set(hw, oy, W - hw, oy + oh);
+                c.drawRoundRect(rf, oh / 2f, oh / 2f, p);
+                float a0 = hw + tw0 * vStart / dur;
+                float a1 = Math.max(a0 + dp(cx, 12), hw + tw0 * (vStart + span) / dur);
+                p.setColor(0xFFCCCCCC);
+                rf.set(a0, oy, Math.min(a1, W - hw), oy + oh);
+                c.drawRoundRect(rf, oh / 2f, oh / 2f, p);
+            }
         }
 
         @Override public boolean onTouchEvent(MotionEvent ev) {
-            float x = ev.getX();
-            switch (ev.getAction()) {
+            float x = ev.getX(), y = ev.getY();
+            switch (ev.getActionMasked()) {
                 case MotionEvent.ACTION_DOWN: {
+                    if (flinging) { sc.forceFinished(true); flinging = false; settle(); }
+                    if (vt != null) vt.recycle();
+                    vt = android.view.VelocityTracker.obtain();
+                    vt.addMovement(ev);
+                    if (getParent() != null) getParent().requestDisallowInterceptTouchEvent(true);
+                    downX = x; lastX = x; ds0 = s; de0 = e; blocked = false; shifted = false;
+                    if (ovArea() > 0 && y >= getHeight() - ovArea() + dp(getContext(), 2)) {
+                        drag = 6;
+                        seekOverview(x);
+                        return true;
+                    }
                     float ds = Math.abs(x - (pos(s) - hw / 2f)), de = Math.abs(x - (pos(e) + hw / 2f));
-                    float slop = dp(getContext(), 26);
+                    float slop = dp(getContext(), 22);
                     if (ds <= de && ds < slop) drag = 1;
                     else if (de < slop) drag = 2;
-                    else if (x >= pos(s) && x <= pos(e)) drag = 3;
-                    else drag = 0;
-                    downX = x; ds0 = s; de0 = e; blocked = false;
-                    if (drag != 0 && getParent() != null) getParent().requestDisallowInterceptTouchEvent(true);
+                    else if (x > pos(s) && x < pos(e)) drag = 3;
+                    else drag = 4;
                     return true;
                 }
                 case MotionEvent.ACTION_MOVE: {
+                    if (vt != null) vt.addMovement(ev);
                     boolean hit = false;
                     if (drag == 1) {
                         long ns = timeAt(x + hw / 2f);
-                        long lo = Math.max(0L, e - max);
+                        long lo = Math.max(vStart, e - max);
                         hit = ns < e - max;
                         s = Math.max(lo, Math.min(ns, e - min));
                     } else if (drag == 2) {
                         long ne = timeAt(x - hw / 2f);
-                        long hi = Math.min(dur, s + max);
+                        long hi = Math.min(vStart + span, s + max);
                         hit = ne > s + max;
                         e = Math.max(s + min, Math.min(ne, hi));
                     } else if (drag == 3) {
                         long len = de0 - ds0;
-                        long dt = (long) ((x - downX) / (getWidth() - 2f * hw) * dur);
-                        long ns = Math.max(0L, Math.min(ds0 + dt, dur - len));
+                        long dt = (long) ((x - downX) / tw() * span);
+                        long ns = Math.max(vStart, Math.min(ds0 + dt, vStart + span - len));
                         s = ns;
                         e = ns + len;
+                    } else if (drag == 4) {
+                        setView(vStart + (long) ((lastX - x) / tw() * span));
+                        lastX = x;
+                        return true;
+                    } else if (drag == 6) {
+                        seekOverview(x);
+                        return true;
                     } else {
                         return true;
                     }
@@ -320,9 +426,27 @@ public class TrimDialog {
                     return true;
                 }
                 case MotionEvent.ACTION_UP:
-                case MotionEvent.ACTION_CANCEL:
+                case MotionEvent.ACTION_CANCEL: {
+                    boolean up = ev.getActionMasked() == MotionEvent.ACTION_UP;
+                    float vx = 0f;
+                    if (vt != null) {
+                        vt.addMovement(ev);
+                        vt.computeCurrentVelocity(1000);
+                        vx = vt.getXVelocity();
+                        vt.recycle();
+                        vt = null;
+                    }
+                    if (drag == 4 && up && dur > span && Math.abs(vx) > dp(getContext(), 250)) {
+                        float ppm = tw() / span;
+                        sc.fling((int) (vStart * ppm), 0, (int) -vx, 0, 0, Math.max(0, (int) ((dur - span) * ppm)), 0, 0);
+                        flinging = true;
+                        postOnAnimation(flingStep);
+                    } else if (drag == 4 || drag == 6) {
+                        settle();
+                    }
                     drag = 0;
                     return true;
+                }
             }
             return true;
         }
@@ -403,7 +527,7 @@ public class TrimDialog {
         title.setTypeface(null, Typeface.BOLD);
         col.addView(title);
         TextView sub = new TextView(act);
-        sub.setText("Trim the movie to the moment you love most.");
+        sub.setText("Trim the video to the moment you love most.");
         sub.setTextColor(0xFFBBBBBB);
         sub.setTextSize(14);
         col.addView(sub);
@@ -449,13 +573,6 @@ public class TrimDialog {
         plp.gravity = Gravity.CENTER;
         vf.addView(centerPlay, plp);
 
-        final ImageView fsTop = icon(act, R.drawable.ic_fullscreen, Color.WHITE);
-        FrameLayout.LayoutParams ftlp = new FrameLayout.LayoutParams(dp(act, 26), dp(act, 26));
-        ftlp.gravity = Gravity.TOP | Gravity.END;
-        ftlp.topMargin = dp(act, 12);
-        ftlp.rightMargin = dp(act, 12);
-        vf.addView(fsTop, ftlp);
-
         LinearLayout ctl = new LinearLayout(act);
         ctl.setOrientation(LinearLayout.HORIZONTAL);
         ctl.setGravity(Gravity.CENTER_VERTICAL);
@@ -482,13 +599,15 @@ public class TrimDialog {
         // ----- bottom group: selector, selected time, buttons -----
         final LinearLayout bottom = new LinearLayout(act);
         bottom.setOrientation(LinearLayout.VERTICAL);
-        root.addView(bottom, new LinearLayout.LayoutParams(-1, -2));
+        LinearLayout.LayoutParams botlp = new LinearLayout.LayoutParams(-1, -2);
+        botlp.leftMargin = -dp(act, 16);
+        botlp.rightMargin = -dp(act, 16);
+        root.addView(bottom, botlp);
 
         final TrimBar bar = new TrimBar(act);
-        final int N = 8;
-        bar.thumbs = new Bitmap[N];
-        bar.dur = dur; bar.s = sel[0]; bar.e = sel[1]; bar.max = maxSel; bar.min = MIN_CLIP_MS;
-        bottom.addView(bar, new LinearLayout.LayoutParams(-1, dp(act, 94)));
+        bar.max = maxSel; bar.min = MIN_CLIP_MS;
+        bar.init(uri, dur, sel[0], sel[1]);
+        bottom.addView(bar, new LinearLayout.LayoutParams(-1, dp(act, 94) + (dur > TrimBar.SPAN_MS ? dp(act, 14) : 0)));
 
         LinearLayout selRow = new LinearLayout(act);
         selRow.setOrientation(LinearLayout.HORIZONTAL);
@@ -520,7 +639,7 @@ public class TrimDialog {
         cont.setBackground(ripple(shape(act, GOLD, 20, 0, 0)));
         cont.setClickable(true);
         LinearLayout.LayoutParams clp = new LinearLayout.LayoutParams(-1, dp(act, 40));
-        clp.topMargin = dp(act, 12);
+        clp.topMargin = dp(act, 12); clp.leftMargin = dp(act, 16); clp.rightMargin = dp(act, 16);
         bottom.addView(cont, clp);
 
         TextView skip = new TextView(act);
@@ -531,7 +650,7 @@ public class TrimDialog {
         skip.setBackground(ripple(shape(act, Color.TRANSPARENT, 18, dp(act, 1), LINE)));
         skip.setClickable(true);
         LinearLayout.LayoutParams klp = new LinearLayout.LayoutParams(-1, dp(act, 36));
-        klp.topMargin = dp(act, 10);
+        klp.topMargin = dp(act, 10); klp.leftMargin = dp(act, 16); klp.rightMargin = dp(act, 16);
         bottom.addView(skip, klp);
 
         LinearLayout hintRow = new LinearLayout(act);
@@ -594,16 +713,14 @@ public class TrimDialog {
             top.setVisibility(vis);
             bottom.setVisibility(vis);
             int ic = fs[0] ? R.drawable.ic_fullscreen_exit : R.drawable.ic_fullscreen;
-            fsTop.setImageResource(ic);
             fsBot.setImageResource(ic);
         };
-        fsTop.setOnClickListener(v -> toggleFs.run());
         fsBot.setOnClickListener(v -> toggleFs.run());
 
         bar.l = (mode, ns, ne) -> {
             sel[0] = ns; sel[1] = ne;
             long t = (mode == 2) ? Math.max(ns, ne - 500) : ns;
-            try { vv.pause(); vv.seekTo((int) t); } catch (Exception ex) {}
+            try { vv.pause(); if (mode != 4) vv.seekTo((int) t); } catch (Exception ex) {}
             playing[0] = false;
             cur[0] = t;
             bar.play = -1;
@@ -636,25 +753,6 @@ public class TrimDialog {
             hd.postDelayed(this, 80);
         }});
 
-        // ----- thumbnails -----
-        new Thread(() -> {
-            MediaMetadataRetriever m = new MediaMetadataRetriever();
-            try {
-                m.setDataSource(act, uri);
-                for (int i = 0; i < N; i++) {
-                    final int idx = i;
-                    long t = (dur * (2L * i + 1) / (2L * N)) * 1000L;
-                    Bitmap b = m.getFrameAtTime(t, MediaMetadataRetriever.OPTION_CLOSEST_SYNC);
-                    if (b == null) continue;
-                    int th = 128, tw = Math.max(1, b.getWidth() * th / Math.max(1, b.getHeight()));
-                    final Bitmap bmp = Bitmap.createScaledBitmap(b, tw, th, true);
-                    if (bmp != b) b.recycle();
-                    act.runOnUiThread(() -> { bar.thumbs[idx] = bmp; bar.invalidate(); });
-                }
-            } catch (Exception ex) {}
-            try { m.release(); } catch (Exception ex) {}
-        }).start();
-
         // ----- results -----
         final boolean[] fin = {false};
         cont.setOnClickListener(v -> {
@@ -676,7 +774,7 @@ public class TrimDialog {
             cb.onCancel();
         });
         dlg.setOnDismissListener(d2 -> {
-            hd.removeCallbacksAndMessages(null);
+            hd.removeCallbacksAndMessages(null); bar.close();
             try { vv.stopPlayback(); } catch (Exception ex) {}
         });
         dlg.setOnKeyListener((di, key, ev) -> {
