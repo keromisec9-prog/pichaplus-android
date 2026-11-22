@@ -683,7 +683,7 @@ public class MainActivity extends AppCompatActivity {
                 "(function(){try{return !document.getElementById('app-splash')&&!!document.querySelector('.skeleton-card,.card')}catch(e){return false}})()",
                 ppVal -> { if ("true".equals(ppVal)) ppReady = true; });
         }
-        if (ppReady && age >= 2800) { ppHideSplash(); return; }
+        if (ppReady && age >= 5500) { ppHideSplash(); return; }
         ppH.postDelayed(this::ppPoll, 150);
     }
 
