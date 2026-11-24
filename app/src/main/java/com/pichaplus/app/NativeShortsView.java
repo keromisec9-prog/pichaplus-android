@@ -126,12 +126,13 @@ public class NativeShortsView extends FrameLayout {
         NetFactory.get(getContext().getApplicationContext());
         dbg("net: " + NetFactory.kind);
         setItems(cfg.optJSONArray("items"));
-        cur = 0;
-        pager.setCurrentItem(0, false);
+        int st0 = Math.max(0, Math.min(cfg.optInt("start", 0), items.size() - 1));
+        cur = st0;
+        pager.setCurrentItem(st0, false);
         applyFlagsAll();
         main.removeCallbacks(tick);
         main.postDelayed(tick, 200);
-        activate(0);
+        activate(st0);
     }
 
     void setItems(JSONArray a) {

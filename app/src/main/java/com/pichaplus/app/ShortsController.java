@@ -19,6 +19,7 @@ public class ShortsController {
     private void fail() { js("window._mpfNatFail&&window._mpfNatFail()"); }
 
     @JavascriptInterface public boolean available() { return true; }
+    @JavascriptInterface public boolean startSupported() { return true; }
 
     @JavascriptInterface public void open(final String json) {
         act.runOnUiThread(() -> {
