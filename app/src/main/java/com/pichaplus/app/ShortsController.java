@@ -51,6 +51,17 @@ public class ShortsController {
         act.runOnUiThread(() -> { try { if (view != null) view.applyState(new JSONObject(json)); } catch (Throwable t) { } });
     }
 
+    @JavascriptInterface public boolean canSave(final int idx) {
+        try { NativeShortsView v = view; return v != null && v.canSave(idx); } catch (Throwable t) { return false; }
+    }
+
+    @JavascriptInterface public boolean saveShort(final int idx) {
+        final NativeShortsView v = view;
+        if (v == null) return false;
+        act.runOnUiThread(() -> { try { v.saveShort(idx); } catch (Throwable t) { } });
+        return true;
+    }
+
     @JavascriptInterface public void close() {
         act.runOnUiThread(() -> {
             if (view == null) return;

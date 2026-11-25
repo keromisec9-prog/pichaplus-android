@@ -48,6 +48,15 @@ final class NetFactory {
             cachedFactory = new CacheDataSource.Factory()
                 .setCache(shortsCache)
                 .setUpstreamDataSourceFactory(up)
+                .setCacheKeyFactory(new androidx.media3.datasource.cache.CacheKeyFactory() {
+                    @Override public String buildCacheKey(androidx.media3.datasource.DataSpec spec) {
+                        if (spec.key != null) return spec.key;
+                        String u = spec.uri.toString(), h = spec.uri.getHost();
+                        int q = u.indexOf('?');
+                        boolean b2 = h != null && (h.equals("media.mypicha.uk") || h.endsWith("backblazeb2.com"));
+                        return (b2 && q > 0) ? u.substring(0, q) : u;
+                    }
+                })
                 .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR);
         } catch (Throwable t) {
             cachedFactory = up;
