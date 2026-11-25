@@ -459,7 +459,7 @@ final class ShortSaver {
             c.scale(s, s);
             c.translate(74.6f, -21.8f);
 
-            int logoLayer = c.saveLayerAlpha(null, Math.round(255f * 0.35f));
+            int logoLayer = c.saveLayerAlpha(null, Math.round(255f * 0.55f));
             if (yS > 0.01f) {
                 c.save();
                 c.clipRect(-130f, 0f, 40f, 130f);
