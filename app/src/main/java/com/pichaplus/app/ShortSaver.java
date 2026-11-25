@@ -459,6 +459,7 @@ final class ShortSaver {
             c.scale(s, s);
             c.translate(74.6f, -21.8f);
 
+            int logoLayer = c.saveLayerAlpha(null, Math.round(255f * 0.35f));
             if (yS > 0.01f) {
                 c.save();
                 c.clipRect(-130f, 0f, 40f, 130f);
@@ -503,9 +504,11 @@ final class ShortSaver {
                 c.drawBitmap(wB, null, new RectF(111f + wtx, 28f, 111f + wtx + 111f, 28f + 74f), bp);
             }
 
+            c.restoreToCount(logoLayer);
+
             if (nameW > 0f && fill > 0.003f) {
                 float q = mS / 47.2f;
-                tp.setAlpha(Math.round(fill * 255f));
+                tp.setAlpha(Math.round(fill * 0.55f * 255f));
                 c.drawText(name, 105f + 14f * q, ny0 + (ny1 - ny0) * q, tp);
             }
             c.restore();
