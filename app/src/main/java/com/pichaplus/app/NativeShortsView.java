@@ -346,10 +346,11 @@ public class NativeShortsView extends FrameLayout {
         if (u == null) return false;
         return it.isShort || u.contains("#pvclip") || u.contains("/pv/");
     }
-    boolean saveShort(int i) {
+    boolean saveShort(int i) { return saveShortAs(i, null); }
+    boolean saveShortAs(int i, String savUser) {
         if (!canSave(i)) return false;
         Item it = items.get(i);
-        ShortSaver.save(getContext(), it.id, it.url, it.user);
+        ShortSaver.save(getContext(), it.id, it.url, (savUser != null && savUser.trim().length() > 0) ? savUser : it.user);
         return true;
     }
 

@@ -62,6 +62,13 @@ public class ShortsController {
         return true;
     }
 
+    @JavascriptInterface public boolean saveShortAs(final int idx, final String user) {
+        final NativeShortsView v = view;
+        if (v == null) return false;
+        act.runOnUiThread(() -> { try { v.saveShortAs(idx, user); } catch (Throwable t) { } });
+        return true;
+    }
+
     @JavascriptInterface public void close() {
         act.runOnUiThread(() -> {
             if (view == null) return;
