@@ -339,7 +339,13 @@ public class NativeShortsView extends FrameLayout {
         s.spin.setVisibility(busy ? View.VISIBLE : View.GONE);
     }
 
-    boolean canSave(int i) { return i >= 0 && i < items.size() && items.get(i).isShort && items.get(i).url != null; }
+    boolean canSave(int i) {
+        if (i < 0 || i >= items.size()) return false;
+        Item it = items.get(i);
+        String u = it.url;
+        if (u == null) return false;
+        return it.isShort || u.contains("#pvclip") || u.contains("/pv/");
+    }
     boolean saveShort(int i) {
         if (!canSave(i)) return false;
         Item it = items.get(i);
