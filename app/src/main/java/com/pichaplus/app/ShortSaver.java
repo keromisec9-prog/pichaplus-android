@@ -200,7 +200,7 @@ final class ShortSaver {
                 FrameLayout.LayoutParams cl = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.CENTER_VERTICAL | Gravity.END);
                 cl.rightMargin = Math.round(8 * d);
                 root.addView(barCancel, cl);
-                content.addView(root, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Math.round(52 * d), Gravity.BOTTOM));
+                content.addView(root, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Math.round(58 * d), Gravity.BOTTOM));
                 barParent = content; barRoot = root; barGen++;
             } catch (Throwable t) { }
         });
@@ -516,7 +516,7 @@ final class ShortSaver {
 
             if (nameW > 0f && fill > 0.003f) {
                 float q = mS / 47.2f;
-                tp.setAlpha(Math.round(fill * 0.55f * 255f));
+                tp.setAlpha(Math.round(fill * 1.0f * 255f));
                 c.drawText(name, 105f + 14f * q, ny0 + (ny1 - ny0) * q, tp);
             }
             c.restore();
