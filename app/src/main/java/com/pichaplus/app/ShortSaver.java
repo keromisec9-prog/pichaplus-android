@@ -329,7 +329,7 @@ final class ShortSaver {
         private final boolean known;
         private final int W, H;
         private final String name;
-        private final float s, boxW, boxH, back, nameW, fs, ny0, ny1;
+        private final float s, boxW, boxH, back, nameW, fs, fsR, ny0, ny1;
         private final Bitmap pB, wB, yB;
         private final Bitmap[] stat = new Bitmap[9];
         private Bitmap anim;
@@ -360,8 +360,10 @@ final class ShortSaver {
             fs = (w0 > 102f) ? 20f * 102f / w0 : 20f;
             tp.setTextSize(fs);
             tp.setShadowLayer(fs * 0.12f, 0f, fs * 0.06f, 0xB0000000);
+            fsR = (w0 * 1.8f > 240f) ? 20f * 240f / w0 : 36f;
+            tp.setTextSize(fsR);
             nameW = this.name.isEmpty() ? 0f : tp.measureText(this.name);
-            ny0 = 65f + fs * 0.36f;
+            ny0 = 65f + fsR * 0.36f;
             ny1 = 74f + 5f + fs * 0.72f;
             float sx = 84.6f / 602f, sy = 73f / 517f;
             float[] pts = {277,309, 431,309, 578,497, 725,309, 879,309, 879,826, 726,826, 726,570, 578,755, 436,570, 436,826, 277,826};
@@ -446,7 +448,7 @@ final class ShortSaver {
             float left, top;
             if (spot == 0) { left = m; top = H * 0.11f; }
             else if (spot == 1) { left = m; top = H * 0.54f; }
-            else { left = W - m - boxW; top = H * 0.77f; }
+            else { left = W - m - Math.max(boxW, (74.6f + 105f + nameW) * s); top = H * 0.77f; }
 
             float fill = tt < 0.9f ? 0f : bz(0f, 0f, 0.58f, 1f, (tt - 0.9f) / 0.5f);
             float sp = tt < 1.55f ? 0f : bz(0.16f, 1f, 0.3f, 1f, (tt - 1.55f) / 0.7f);
@@ -517,6 +519,9 @@ final class ShortSaver {
             if (nameW > 0f && fill > 0.003f) {
                 float q = mS / 47.2f;
                 tp.setAlpha(Math.round(fill * 1.0f * 255f));
+                float fq = fsR + (fs - fsR) * q;
+                tp.setTextSize(fq);
+                tp.setShadowLayer(fq * 0.12f, 0f, fq * 0.06f, 0xB0000000);
                 c.drawText(name, 105f + 14f * q, ny0 + (ny1 - ny0) * q, tp);
             }
             c.restore();
