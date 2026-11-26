@@ -271,6 +271,8 @@ final class ShortSaver {
         } finally { try { ds.close(); } catch (Throwable t) { } fo.close(); }
     }
 
+    static volatile long lastDurUs = 0L;
+
     private static int[] size(File f) throws Exception {
         MediaMetadataRetriever r = new MediaMetadataRetriever();
         try {
@@ -278,6 +280,7 @@ final class ShortSaver {
             int w = Integer.parseInt(r.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH));
             int h = Integer.parseInt(r.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT));
             String rot = r.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_ROTATION);
+            try { lastDurUs = Long.parseLong(r.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)) * 1000L; } catch (Throwable e) { lastDurUs = 0L; }
             if ("90".equals(rot) || "270".equals(rot)) { int t = w; w = h; h = t; }
             return new int[]{w, h};
         } finally { r.release(); }
@@ -322,6 +325,8 @@ final class ShortSaver {
     /** Animated MyPicha+ watermark: plays once from video start (fade in, M/y slide out, wordmark in, hold, retract), then stays MP + @name. */
     private static final class HopOverlay extends BitmapOverlay {
         private static final float FPS = 30f;
+        private final long hopUs;
+        private final boolean known;
         private final int W, H;
         private final String name;
         private final float s, boxW, boxH, back, nameW, fs, ny0, ny1;
@@ -339,7 +344,10 @@ final class ShortSaver {
         HopOverlay(int w, int h, Bitmap mark, Bitmap word, String name) {
             W = w; H = h; this.name = name == null ? "" : name;
             boxW = w * 0.26f; s = boxW / 299f; boxH = 87f * s;
-            float hs = HOP_US / 1000000f;
+            long dur = lastDurUs;
+            known = dur > 0L;
+            hopUs = known ? Math.max(dur / 3L, 4000000L) : HOP_US;
+            float hs = hopUs / 1000000f;
             back = Math.max(3.9f, Math.min(5.5f, hs - 0.1f));
             pB = fit(b64(WmAssets.P), Math.round(130f * s), Math.round(130f * s));
             wB = fit(b64(WmAssets.WORD), Math.round(111f * s), Math.round(74f * s));
@@ -413,7 +421,7 @@ final class ShortSaver {
 
         @Override public Bitmap getBitmap(long presentationTimeUs) throws VideoFrameProcessingException {
             long t = Math.max(0L, presentationTimeUs);
-            int k = (int) ((t / HOP_US) % 3);
+            int k = known ? (int) Math.min(2L, t / hopUs) : (int) ((t / hopUs) % 3);
             float lt = t / 1000000f + 0.9f;
             int key;
             if (lt >= back + 0.7f) key = 2;
