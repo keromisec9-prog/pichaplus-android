@@ -86,7 +86,18 @@ public class UploadService extends Service {
         if (Build.VERSION.SDK_INT >= 29) startForeground(NID, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC); else startForeground(NID, n);
     }
 
+    static volatile Runnable slowCb;
+    private static volatile long slowAt = 0;
+    static void slowPing() {
+        long n = System.currentTimeMillis();
+        if (n - slowAt < 20000) return;
+        slowAt = n;
+        Runnable r = slowCb;
+        if (r != null) { try { r.run(); } catch (Throwable t) {} }
+    }
+
     private void note(St st) {
+        if ("retrying".equals(st.state)) slowPing();
         int pct = st.size > 0 ? (int) (st.sent * 100 / st.size) : 0;
         String t = st.title.isEmpty() ? "Uploading to Studio" : st.title;
         String s = "waiting".equals(st.state) ? "Waiting for connection" : ("retrying".equals(st.state) ? "Reconnecting" : pct + "%");
@@ -151,7 +162,7 @@ public class UploadService extends Service {
         p.setReadTimeout(90000);
         p.setRequestProperty("Content-Type", "application/octet-stream");
         p.setFixedLengthStreamingMode(len);
-        long lastNote = 0;
+        long lastNote = 0, sT0 = System.currentTimeMillis(), sB0 = 0;
         try (RandomAccessFile raf = new RandomAccessFile(f, "r"); OutputStream os = p.getOutputStream()) {
             raf.seek(off);
             byte[] buf = new byte[1 << 16];
@@ -163,6 +174,7 @@ public class UploadService extends Service {
                 left -= n;
                 st.sent = base + (len - left);
                 long now = System.currentTimeMillis();
+                if (now - sT0 >= 6000) { if ((len - left - sB0) * 1000L / (now - sT0) < 60 * 1024) slowPing(); sT0 = now; sB0 = len - left; }
                 if (now - lastNote > 1500) { lastNote = now; note(st); }
             }
         }

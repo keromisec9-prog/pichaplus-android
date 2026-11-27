@@ -440,6 +440,7 @@ public class MainActivity extends AppCompatActivity {
             @android.webkit.JavascriptInterface public String liveUploads() { return UploadService.liveJson(); }
             @android.webkit.JavascriptInterface public boolean hasCopy(String name, long size) { return VideoCompressor.findCopy(MainActivity.this, name, size) != null; }
         }, "PichaTemp");
+        { final java.lang.ref.WeakReference<MainActivity> ppW = new java.lang.ref.WeakReference<>(this); UploadService.slowCb = () -> { MainActivity a = ppW.get(); if (a != null) a.runOnUiThread(a::ppShowSlow); }; }
         new Thread(() -> UploadStore.sweepOrphans(MainActivity.this)).start();
         UploadStore.flush(this);
         try {
